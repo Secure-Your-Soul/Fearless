@@ -1,0 +1,12 @@
+[submodule "external/linux"]
+	path = external/linux
+	url = https://github.com/torvalds/linux.git
+	shallow = true
+[submodule "external/limine"]
+	path = external/limine
+	url = https://github.com/limine-bootloader/limine.git
+	shallow = true
+[submodule "external/SecureEngine"]
+	path = external/SecureEngine
+	url = https://github.com/Secure-Your-Soul/SecureEngine.git
+	shallow = true

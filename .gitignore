@@ -1,0 +1,11 @@
+# Temporary files to Build OS (Kernel, Bootloaders etc.) 
+external/linux/*
+!external/linux/.git
+external/limine/*
+!external/limine/.git
+.cache
+# Documentation
+notes
+# Output
+output
+target
