@@ -1,0 +1,11 @@
+services:
+  builder:
+    build: .
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+    devices:
+        - "/dev/bus/usb:/dev/bus/usb"
+    command: make
