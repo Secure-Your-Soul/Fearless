@@ -1,4 +1,8 @@
-
+[![Version](https://img.shields.io/badge/VERSION-v0.0.1-FF0033?style=for-the-badge)](https://github.com/Secure-Your-Soul)
+[![Architecture](https://img.shields.io/badge/ZERO--TRUST-ENFORCED-8b5cf6?style=for-the-badge&logo=proton&logoColor=white)](https://github.com/Secure-Your-Soul)
+[![Privacy](https://img.shields.io/badge/PRIVACY-ZERO--KNOWLEDGE-10b981?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/Secure-Your-Soul)
+[![Safety](https://img.shields.io/badge/SAFETY-MEMORY--SAFE-3b82f6?style=for-the-badge&logo=rust&logoColor=white)](https://github.com/Secure-Your-Soul)
+[![Kernel](https://img.shields.io/badge/KERNEL-HARDENED--LINUX-orange?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Secure-Your-Soul)
 # ⚒️ How to start
 1. 📥 Download Repository
 ```sh
@@ -40,3 +44,14 @@ I am building **Fearless** from scratch, and I would love your help! Whether you
 
 ---
 *If you're not sure where to start, feel free to [start a discussion](https://github.com/Secure-Your-Soul/Fearless/discussions) or message me directly!*
+
+## 💖 Support the Project
+
+Our community helps us build and push this project forward. If you'd like to support us directly, visit our page:
+
+👉 **[Sponsor the project on our website](https://www.patreon.com/c/SecureYourSoul)**
+
+## 📝 License
+
+This project is licensed under the **GNU AGPLv3** with a proprietary exception for the **FearInit** component. 
+See the [LICENSE](LICENSE) file for full details.
