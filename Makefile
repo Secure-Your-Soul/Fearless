@@ -1,197 +1,144 @@
-# Fearless Makefile
+# 	Fearless Makefile
+#
+#  Copyright (C) 2026 Denis Rudolf Kontek (Secure Your Soul)
+#  Licensed under the GNU Affero General Public License v3.0.
+#
 # --------- CONFIG ---------
 	OS_NAME =Fearless
-	OS_FULLNAME =$(OS_NAME)_$(BUILD_MODE).iso
-	CONFIG = config
-	CONFIG_CERTS = $(CONFIG)/certs
-	CONFIG_KERNELS = $(CONFIG)/kernel
-	INITRAMFS = $(CACHE)/initramfs
-	BIN = $(INITRAMFS)/bin
-	ISO = $(CACHE)/iso
-	BOOT = $(ISO)/boot
+	KERNELS = kernels
+	PIV_CERT = $(OS_NAME).crt
+	TARGET = $(ARCH)/$(TYPE)/$(MODE)/$(LIB)
+	INITRAMFS = $(CACHE)/$(TARGET)/initramfs
+	ISO = $(CACHE)/$(TARGET)/iso
 	EFI_BOOT = $(ISO)/EFI/BOOT
-	ISO_LIMINE = $(BOOT)/limine
-#	Temporary Files/Cache
+    # Temporary Files
 	CACHE = .cache
-# --------- External Repositories Paths ---------
-	EXTERNAL = external
-	LIMINE = $(EXTERNAL)/limine
-	LINUX = $(EXTERNAL)/linux
-	SECURE_ENGINE = $(EXTERNAL)/SecureEngine
-#	Limine Binary Files
-	LIMINE_BIN = $(LIMINE)/bin
-# ---------	Kernel Binary File ---------
+    # --------- External Repositories Paths ---------
+	LINUX = linux
+	FEARINIT = FearInit
+    # ---------	Kernel Binary File ---------
 	LINUX_IMAGE = $(LINUX)/arch/x86/boot/bzImage
-# ---------	Shim Secure Boot ---------
-	SHIM := $(EXTERNAL)/shim
-	SHIM_BIN := $(SHIM)/shimx64.efi
-	CERT_FILE := $(CONFIG_CERTS)/$(OS_NAME).crt
-# ---------	Init Binary File ---------
-	SECURE_ENGINE_BIN = $(SECURE_ENGINE)/target/x86_64-unknown-linux-gnu/release/secure-engine
-# --------- OUTPUT ---------
+    # ---------	Shim Secure Boot Loader ---------
+	SHIM_x86_64 = $(CACHE)/shimx86_64.rpm
+	SHIM_aarch64 = $(CACHE)/shimaarch64.rpm
+    # --------- OUTPUT ---------
 	OUTPUT = output
-# Limine Template
-define LIMINE_CONFIG
-TIMEOUT:5
-VERBOSE:$(VERBOSE)
-WALLPAPER:boot():/boot/limine/$(OS_NAME).bmp#@WALLPAPER_HASH@
-INTERFACE_BRANDING:$(OS_NAME) $(BUILD_MODE)
-REMEMBER_LAST_ENTRY:yes
-
-/$(OS_NAME) $(BUILD_TYPE)($(BUILD_MODE))
-    PROTOCOL:linux
-    KERNEL_PATH:boot():/boot/bzImage#@KERNEL_HASH@
-    MODULE_PATH:boot():/boot/initramfs.cpio.zst#@CPIO_HASH@
-    HASH_MANDATORY:yes
-    CMDLINE:root=/dev/sr0 rootwait rw rdinit=/init console=tty0 quiet loglevel=3 panic=5 lockdown=integrity lsm=landlock,lockdown,yama,integrated,selinux,bpf security=selinux selinux=1
-endef
-export LIMINE_CONFIG
-.PHONY: all build_all build_dev build_release build config clean fclean install update dev test limine linux secure_engine shim iso
-all: install build_all
+    # INSTALL
+	PACMAN_PKGS := base-devel git curl libarchive
+	APT_PKGS    := build-essential git curl libarchive-tools
+	DNF_PKGS    := @development-tools curl bsdtar
+    #						Glibc					Musl
+	RUST_TARGETS := x86_64-unknown-linux-gnu x86_64-unknown-linux-musl \
+					aarch64-unknown-linux-gnu aarch64-unknown-linux-musl \
+					riscv64gc-unknown-linux-gnu riscv64gc-unknown-linux-musl
+	
+.PHONY: all install update build_all build build_test
+all: build_all
 install:
 	@SUDO=""; \
-	if [ "$$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1; then \
-		SUDO="sudo"; \
-	fi; \
-	if command -v pacman >/dev/null 2>&1; then \
-		echo "Installing dependencies for Arch Linux (Docker)..."; \
-		\
-		$$SUDO pacman -Syu --needed --noconfirm \
-			git rustup ca-certificates patch autoconf automake cmake gcc glibc \
-			clang lld llvm mtools nasm flex bison linux-api-headers perl bc libelf openssl \
-			riscv64-linux-gnu-gcc musl aarch64-linux-gnu-gcc \
-			zstd coreutils cpio xorriso curl rpm-tools cpio \
-			opensc pcsc-lite ccid openssl; \
-	elif command -v apt-get >/dev/null 2>&1; then \
-		\
-		echo "Installing dependencies for Debian/Ubuntu (Docker)..."; \
-		$$SUDO apt-get update && \
-		$$SUDO apt-get install -y --no-install-recommends \
-			git rustup ca-certificates patch autoconf automake cmake gcc libc6-dev \
-			clang lld llvm mtools nasm flex bison linux-libc-dev perl bc libelf-dev libssl-dev \
-			gcc-riscv64-linux-gnu musl-tools g++-riscv64-linux-gnu libc6-dev-riscv64-cross \
-			gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross \
-			zstd cpio xorriso curl rpm2cpio cpio \
-			osslsigncode opensc pcscd libccid openssl \
-		&& rm -rf /var/lib/apt/lists/*; \
-	elif command -v dnf >/dev/null 2>&1; then \
-		echo "Installing dependencies for Fedora/RHEL (Docker)..."; \
-		\
-		$$SUDO dnf install -y \
-			git rustup ca-certificates patch autoconf automake cmake gcc glibc-devel \
-			clang lld llvm mtools nasm flex bison kernel-headers perl bc libelf-devel openssl-devel \
-			gcc-riscv64-linux-gnu musl-gcc gcc-aarch64-linux-gnu \
-			zstd coreutils cpio xorriso curl rpm-build cpio \
-			osslsigncode opensc pcsc-lite pcsc-lite-ccid openssl; \
+	[ "$$(id -u)" != "0" ] && command -v sudo > /dev/null 2>&1 && SUDO="sudo"; \
+	if command -v pacman > /dev/null 2>&1; then \
+		$$SUDO pacman -S --needed --noconfirm -q $(PACMAN_PKGS) > /dev/null; \
+	elif command -v apt-get > /dev/null 2>&1; then \
+		$$SUDO apt-get update -q > /dev/null && \
+		$$SUDO apt-get install -y -q --no-install-recommends $(APT_PKGS) > /dev/null; \
+	elif command -v dnf > /dev/null 2>&1; then \
+		$$SUDO dnf install -y -q $(DNF_PKGS) > /dev/null; \
 	else \
 		echo "Error: Unsupported package manager." && exit 1; \
 	fi; \
-	\
-	if ! command -v osslsigncode >/dev/null 2>&1; then \
-		echo "⚙️ Building osslsigncode from source for container environment..."; \
-		git clone --depth 1 https://github.com/mtrojnar/osslsigncode.git /tmp/osslsigncode; \
-		cd /tmp/osslsigncode && mkdir -p build && cd build; \
-		cmake .. && make -j$$(nproc) && $$SUDO make install; \
-		cd / && rm -rf /tmp/osslsigncode; \
-	fi; \
-	\
-	rustup toolchain install nightly; \
-	rustup target add \
-		x86_64-unknown-linux-gnu x86_64-unknown-linux-musl x86_64-unknown-none \
-		aarch64-unknown-linux-gnu aarch64-unknown-linux-musl aarch64-unknown-none \
-		riscv64gc-unknown-linux-gnu riscv64gc-unknown-linux-musl riscv64gc-unknown-none-elf; \
-	$(MAKE) update
+	rustup target add $(RUST_TARGETS)
+	@$(MAKE) --no-print-directory update
 update:
-	git config --global --add safe.directory /build
-	git submodule update --init --recursive --depth 1 --remote
-build: initramfs_dirs shim secure_engine cpio linux limine sign limine_config iso
-build_all: clean build_dev build_release
-build_dev:
-	$(MAKE) build BUILD_MODE="DEV"
-build_release:
-	$(MAKE) build BUILD_MODE="RELEASE"
-docker: clean
-	docker compose up --build
-	mkdir -p ./output
-	docker cp $$(docker compose ps -qa builder):/build/output/. ./output/
-	docker compose down
-podman: clean
-	podman-compose up --build
-	mkdir -p ./output
-	podman cp $$(docker compose ps -qa builder):/build/output/. ./output/
-	podman-compose down
-initramfs_dirs:
-# 	Creating Structure in Cache Folder
-#	mkdir -p $(CACHE)/{initramfs/{bin,dev,proc,sys},iso/{boot/limine,EFI/BOOT}}
-	mkdir -p .cache/initramfs/bin \
-	         .cache/initramfs/dev \
-	         .cache/initramfs/proc \
-	         .cache/initramfs/sys \
-	         .cache/iso/boot/limine \
-	         .cache/iso/EFI/BOOT
-#	Copy initramfs config files to cache
-#	cp -r $(CONFIG)/initramfs/* $(INITRAMFS)/ 2>/dev/null || true
-FEDORA_VER := $(shell curl -s https://dl.fedoraproject.org/pub/fedora/linux/releases/ | grep -oE '[0-9]+/' | tr -d '/' | sort -n | tail -n 1)
+	@git submodule update --init --recursive --depth 1 --remote
+build_all: install
 
-URL_X86_64  = https://dl.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/x86_64/os/Packages/s/
-URL_AARCH64 = https://dl.fedoraproject.org/pub/fedora/linux/releases/$(FEDORA_VER)/Everything/aarch64/os/Packages/s/
+    # --------------------------------------------------
+    # 						Desktop
+    # --------------------------------------------------
+	
+    # x86_64 (x86 64-bit / AMD64)
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=glibc
 
+    # aarch64 (ARM 64-bit)
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Dev LIB=glibc
+
+    # riscv64 (RISC-V 64-bit)
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Dev LIB=glibc
+	
+    # --------------------------------------------------
+    # 						Server
+    # --------------------------------------------------
+
+    # x86_64 (x86 64-bit / AMD64)
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Dev LIB=glibc
+
+    # aarch64 (ARM 64-bit)
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Dev LIB=glibc
+
+    # riscv64 (RISC-V 64-bit)
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Dev LIB=glibc
+
+build: initramfs shim # fearinit kernel
+build_test: install
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=glibc
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=musl
+	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=glibc
+initramfs:
+	@mkdir -p $(CACHE)/$(TARGET)/initramfs/bin \
+	         $(CACHE)/$(TARGET)/initramfs/dev \
+	         $(CACHE)/$(TARGET)/initramfs/proc \
+	         $(CACHE)/$(TARGET)/initramfs/sys \
+	         $(CACHE)/$(TARGET)/iso/EFI/BOOT
 shim:
-	@echo "🔍 Wykryta wersja Fedory: $(FEDORA_VER)"
-	@mkdir -p $(EFI_BOOT) .cache
-	
-	$(eval RPM_X64  := $(shell curl -s $(URL_X86_64)  | grep -oE 'shim-x64-[0-9.]+-([0-9.]+)\.[^"]+\.rpm' | grep -v 'unsigned' | sort -V | tail -n 1))
-	$(eval RPM_IA32 := $(shell curl -s $(URL_X86_64)  | grep -oE 'shim-ia32-[0-9.]+-([0-9.]+)\.[^"]+\.rpm' | grep -v 'unsigned' | sort -V | tail -n 1))
-	$(eval RPM_AA64 := $(shell curl -s $(URL_AARCH64) | grep -oE 'shim-aa64-[0-9.]+-([0-9.]+)\.[^"]+\.rpm' | grep -v 'unsigned' | sort -V | tail -n 1))
-
-	@if [ -z "$(RPM_X64)" ]; then echo "❌ Error: No RPM"; exit 1; fi
-	
-	@curl -sL -f -o ".cache/$(RPM_X64)" "$(URL_X86_64)$(RPM_X64)"
-	@if [ -n "$(RPM_IA32)" ]; then curl -sL -f -o ".cache/$(RPM_IA32)" "$(URL_X86_64)$(RPM_IA32)"; fi
-	@if [ -n "$(RPM_AA64)" ]; then curl -sL -f -o ".cache/$(RPM_AA64)" "$(URL_AARCH64)$(RPM_AA64)"; fi
-	
-	# --- x86_64 ---
-	# --- IA32 ---
-	# --- AArch64 ---
-
-	@cp $(CERT_FILE) $(EFI_BOOT)/$(OS_NAME).cer 2>/dev/null || true
-secure_engine:
-#	SecureEngine Repository Build
-	env -u MAKEFLAGS -u CFLAGS -u LDFLAGS $(MAKE) -j$(shell nproc) -C $(SECURE_ENGINE) all
-# 	Giving Init File Execute Permission
-	chmod +x $(SECURE_ENGINE_BIN)
-#	Copy SecureEngine Binary to BIN
-	cp $(SECURE_ENGINE_BIN) $(INITRAMFS)/init
-cpio:
-#	Create Cpio File and move to boot folder
-	(cd $(INITRAMFS) && find . -print0 | cpio --null -ov --format=newc | zstd --ultra -22 --long=31 --threads=0 > ../iso/boot/initramfs.cpio.zst)
-linux:
-# 	Copy kernel configuration
-	cp $(CONFIG_KERNELS)/$(OS_NAME)_Desktop.config $(LINUX)/.config
-# 	Linux Repository Build
-	$(MAKE) -C $(LINUX) LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" olddefconfig
-	$(MAKE) -C $(LINUX) LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" bzImage -j$(shell nproc)
-# 	Copy Kernel image
-	cp $(LINUX_IMAGE) $(BOOT)/bzImage
-limine:
-# ------------------------------------------------------------------------------
-# 	Limine Repository Build
-# ------------------------------------------------------------------------------
-	(cd $(LIMINE) && ./bootstrap && ./configure --enable-all) && $(MAKE) -C $(LIMINE) -j$(shell nproc)
-# ------------------------------------------------------------------------------
-# 🛡️ Legacy CD/HDD PXE
-# ------------------------------------------------------------------------------
-	@cp $(addprefix $(LIMINE_BIN)/, limine-bios.sys limine-bios-cd.bin limine-bios-hdd.bin limine-bios-pxe.bin) $(ISO_LIMINE)/
-# ------------------------------------------------------------------------------
-# 🛡️ UEFI
-# ------------------------------------------------------------------------------
-	@cp $(LIMINE_BIN)/limine-uefi-cd.bin $(ISO_LIMINE)/
-	@cp $(LIMINE_BIN)/BOOTX64.EFI $(EFI_BOOT)/grubx64.efi
-	@cp $(LIMINE_BIN)/BOOTAA64.EFI $(EFI_BOOT)/grubaa64.efi
-	@cp $(LIMINE_BIN)/BOOTIA32.EFI $(EFI_BOOT)/grubia32.efi
-	@cp $(addprefix $(LIMINE_BIN)/, BOOTRISCV64.EFI BOOTLOONGARCH64.EFI) $(EFI_BOOT)/
-
-	@cp $(CONFIG)/iso/limine/$(OS_NAME).bmp $(ISO_LIMINE)/$(OS_NAME).bmp
+	@if [ ! -f $(SHIM_x86_64) ]; then \
+		echo "⬇️ Downloading x86_64 shim..."; \
+		curl -fL -o $(SHIM_x86_64) -s https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/Packages/s/shim-x64-16.1-5.x86_64.rpm || \
+		{ echo "❌ Failed to download x86_64 shim"; rm -f $(SHIM_x86_64); exit 1; }; \
+	fi
+	@if [ ! -f $(SHIM_aarch64) ]; then \
+		echo "⬇️ Downloading aarch64 shim..."; \
+		curl -fL -o $(SHIM_aarch64) -s https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/aarch64/os/Packages/s/shim-aa64-16.1-5.aarch64.rpm || \
+		{ echo "❌ Failed to download aarch64 shim"; rm -f $(SHIM_aarch64); exit 1; }; \
+	fi
+	@echo "📦 Extracting shim for ARCH=$(ARCH) into $(EFI_BOOT)..."
+	@if [ "$(ARCH)" = "x86_64" ]; then \
+        bsdtar -xf $(SHIM_x86_64) -C $(EFI_BOOT) --strip-components 8 "*EFI/BOOT/*" "*mmx64.efi"; \
+        printf 'BOOTX64.EFI,$(OS_NAME),,This is the boot entry for $(OS_NAME)\n' | iconv -t UTF-16LE > $(EFI_BOOT)/BOOTX64.CSV; \
+    elif [ "$(ARCH)" = "aarch64" ]; then \
+        bsdtar -xf $(SHIM_aarch64) -C $(EFI_BOOT) --strip-components 8 "*EFI/BOOT/*" "*mmaa64.efi"; \
+        printf 'BOOTAA64.EFI,$(OS_NAME),,This is the boot entry for $(OS_NAME)\n' | iconv -t UTF-16LE > $(EFI_BOOT)/BOOTAA64.CSV; \
+    elif [ "$(ARCH)" = "riscv64" ]; then \
+        printf 'BOOTRISCV64.EFI,$(OS_NAME),,This is the boot entry for $(OS_NAME)\n' | iconv -t UTF-16LE > $(EFI_BOOT)/BOOTRISCV64.CSV; \
+    fi
+fearinit:
+	@$(MAKE) --no-print-directory -C $(FEARINIT)
+kernel:
+	$(MAKE) --no-print-directory -C $(LINUX) $(KARGS) ARCH=$(ARCH) tinyconfig
+	$(LINUX)/scripts/kconfig/merge_config.sh -O $(LINUX) \
+		$(LINUX)/.config \
+		config/$(ARCH).config \
+		config/$(TYPE).config \
+		config/$(MODE).config
 sign:
 	@echo "🔏 Signing binaries with YubiKey (osslsigncode)..."
 	@OPENSC_SO=$$(ls /usr/lib*/opensc-pkcs11.so /usr/lib64/pkcs11/opensc-pkcs11.so 2>/dev/null | head -n 1); \
@@ -226,20 +173,6 @@ sign:
 	rm -f "$$CNF"; \
 	[ "$$SUCCESS" -eq 0 ] && exit 1; \
 	echo "🎉 All binaries successfully signed!"
-limine_config:
-# ------------------------------------------------------------------------------
-# 	Create Limine config
-# ------------------------------------------------------------------------------
-	@KERNEL_HASH=$$(b2sum $(BOOT)/bzImage 2>/dev/null | cut -d' ' -f1); \
-	CPIO_HASH=$$(b2sum $(BOOT)/initramfs.cpio.zst 2>/dev/null | cut -d' ' -f1); \
-	WALLPAPER_HASH=$$(if [ -f "$(ISO_LIMINE)/$(OS_NAME).bmp" ]; then b2sum "$(ISO_LIMINE)/$(OS_NAME).bmp" | cut -d' ' -f1; else echo ""; fi); \
-	if [ -z "$$KERNEL_HASH" ] || [ -z "$$CPIO_HASH" ]; then \
-		echo "❌ Błąd: Brak plików do wyliczenia sum b2sum!"; exit 1; \
-	fi; \
-	echo "$$LIMINE_CONFIG" | \
-		sed "s|@KERNEL_HASH@|$$KERNEL_HASH|g" | \
-		sed "s|@CPIO_HASH@|$$CPIO_HASH|g" | \
-		sed "s|@WALLPAPER_HASH@|$$WALLPAPER_HASH|g" > $(ISO_LIMINE)/limine.conf
 iso:
 	mkdir -p $(OUTPUT)
 	xorriso -as mkisofs \
@@ -257,21 +190,21 @@ iso:
 		echo "🔏 Signing ISO with GPG..."; \
 		cd $(OUTPUT) && gpg --batch --yes --detach-sign --armor $(OS_FULLNAME); \
 	fi
-config:
-	$(MAKE) -C $(LINUX) menuconfig
-# TEMP CLEAN
+docker: clean
+	docker compose up --build
+	mkdir -p ./output
+	docker cp $$(docker compose ps -qa builder):/build/output/. ./output/
+	docker compose down
+podman: clean
+	podman-compose up --build
+	mkdir -p ./output
+	podman cp $$(podman-compose ps -qa builder):/build/output/. ./output/
+	podman-compose down
 clean:
 	rm -rf $(CACHE)
 	rm -rf target
 	rm -rf $(OUTPUT)
-# FULL CLEAN
-fclean:
-	$(MAKE) clean
-	rm -rf $(EXTERNAL)
-dev:
-	$(MAKE) -C $(SECURE_ENGINE) dev
 test:
-	qemu-system-x86_64 -enable-kvm -cdrom $(OUTPUT)/$(OS_NAME)_DEV.iso -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd -m 2G\
+	qemu-system-x86_64 -enable-kvm -cdrom $(OUTPUT)/$(OS_NAME)_Dev.iso -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd -m 2G\
 		-serial stdio \
 		-monitor vc
-#qemu-system-x86_64 -enable-kvm -cdrom $(OUTPUT)/$(OS_NAME)_DEV.iso -m 2G
