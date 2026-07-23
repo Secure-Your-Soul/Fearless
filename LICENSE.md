@@ -628,7 +628,7 @@ the exclusion of warranty; and each file should have at least the
 "copyright" line and a pointer to where the full notice is found.
 
         <one line to give the program's name and a brief idea of what it does.>
-        Copyright (C) 2026  Denis Rudolf Kontek
+        Copyright (C) 2026  Denis Rudolf Kontek (Secure Your Soul)
 
         This program is free software: you can redistribute it and/or modify
         it under the terms of the GNU Affero General Public License as
@@ -658,3 +658,24 @@ You should also get your employer (if you work as a programmer) or
 school, if any, to sign a "copyright disclaimer" for the program, if
 necessary. For more information on this, and how to apply and follow
 the GNU AGPL, see <https://www.gnu.org/licenses/>.
+
+----------------------------------------------------------------------
+ADDITIONAL LICENSING TERMS AND EXCEPTIONS
+----------------------------------------------------------------------
+
+1. System Licensing
+This software is licensed under the GNU Affero General Public License 
+version 3 (AGPLv3), with the explicit exception detailed below.
+
+2. Proprietary FearInit Exception
+The file(s) and binaries comprising the custom `FearInit` system and 
+Anti-Cheat module (located in `/src/fearinit/` or `/bin/fearinit`) are NOT 
+covered by the AGPLv3 license.
+
+All rights to the `FearInit` and Anti-Cheat components are reserved by 
+Denis Rudolf Kontek (Secure Your Soul). 
+
+Source code for these components is provided for inspection and audit 
+purposes only. Running, modifying, distributing, or sublicensing these 
+specific components without explicit prior written consent from the 
+copyright holder is strictly prohibited.
