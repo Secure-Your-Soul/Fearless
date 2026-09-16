@@ -5,34 +5,151 @@
 #
 # --------- CONFIG ---------
 	OS_NAME =Fearless
+	OS_FULLNAME = $(OS_NAME)_$(TYPE)_$(ARCH)_$(MODE)
 	KERNELS = kernels
-	PIV_CERT = $(OS_NAME).crt
-	TARGET = $(ARCH)/$(TYPE)/$(MODE)/$(LIB)
+	PIV_CERT = $(OS_NAME).cer
+	TARGET = $(ARCH)/$(TYPE)/$(MODE)
 	INITRAMFS = $(CACHE)/$(TARGET)/initramfs
-	ISO = $(CACHE)/$(TARGET)/iso
-	EFI_BOOT = $(ISO)/EFI/BOOT
+	IMG = $(CACHE)/$(TARGET)/img
+	EFI_BOOT = $(IMG)/EFI/BOOT
     # Temporary Files
 	CACHE = .cache
+    #	 --------- Dynamic Mapping to Rust/Cargo ---------
+
+    #	 1. Mapping ARCH on Rust Target (adding 'gc' to riscv64)
+	ifeq ($(ARCH),riscv64)
+		RUST_ARCH := riscv64gc
+	else
+		RUST_ARCH := $(ARCH)
+	endif
+    #	 2. Mapping MODE (Dev -> debug, Release -> release)
+	ifeq ($(MODE),Dev)
+		CARGO_MODE := debug
+	else
+		CARGO_MODE := release
+	endif
     # --------- External Repositories Paths ---------
 	LINUX = linux
 	FEARINIT = FearInit
-    # ---------	Kernel Binary File ---------
-	LINUX_IMAGE = $(LINUX)/arch/x86/boot/bzImage
-    # ---------	Shim Secure Boot Loader ---------
-	SHIM_x86_64 = $(CACHE)/shimx86_64.rpm
-	SHIM_aarch64 = $(CACHE)/shimaarch64.rpm
+	FEARINIT_BIN = $(FEARINIT)/target/$(RUST_ARCH)-unknown-linux-musl/$(CARGO_MODE)/fearinit
+    # --------- Dynamic Kernel & EFI Target Mapping ---------
+    ifeq ($(ARCH),x86_64)
+        KERNEL_ARCH    := x86
+        CROSS_PREFIX   :=
+        KERNEL_TARGET  := bzImage
+        KERNEL_SRC_BIN := $(LINUX)/arch/x86/boot/bzImage
+        EFI_OUT_NAME   := BOOTX64.EFI
+    else ifeq ($(ARCH),aarch64)
+        KERNEL_ARCH    := arm64
+        CROSS_PREFIX   := aarch64-linux-gnu-
+        KERNEL_TARGET  := Image.gz
+        KERNEL_SRC_BIN := $(LINUX)/arch/arm64/boot/Image.gz
+        EFI_OUT_NAME   := BOOTAA64.EFI
+    else ifeq ($(ARCH),riscv64)
+        KERNEL_ARCH    := riscv
+        CROSS_PREFIX   := riscv64-linux-gnu-
+        KERNEL_TARGET  := Image
+        KERNEL_SRC_BIN := $(LINUX)/arch/riscv/boot/Image
+        EFI_OUT_NAME   := BOOTRISCV64.EFI
+    endif
+    # --------- Kernel Binary File ---------
+    KERNEL_IMAGE := $(LINUX)/arch/$(ARCH)/boot/bzImage
+    KERNEL_FLAGS := LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX)
     # --------- OUTPUT ---------
 	OUTPUT = output
     # INSTALL
-	PACMAN_PKGS := base-devel git curl libarchive
-	APT_PKGS    := build-essential git curl libarchive-tools
-	DNF_PKGS    := @development-tools curl bsdtar
-    #						Glibc					Musl
-	RUST_TARGETS := x86_64-unknown-linux-gnu x86_64-unknown-linux-musl \
-					aarch64-unknown-linux-gnu aarch64-unknown-linux-musl \
-					riscv64gc-unknown-linux-gnu riscv64gc-unknown-linux-musl
+	PACMAN_PKGS := base-devel git curl libarchive ccache
+	APT_PKGS    := build-essential git curl libarchive-tools ccache
+	DNF_PKGS    := @development-tools curl bsdtar ccache
+	RUST_TARGETS := x86_64-unknown-linux-musl aarch64-unknown-linux-musl riscv64gc-unknown-linux-musl
+    # BUILD
+	ALL_ARCHS = x86_64 aarch64 riscv64
+	ALL_TYPES = Desktop Server
+	ALL_MODES = Release Dev
+define KCONFIG_GEN
+	echo "# --- Fearless Custom Overrides ---" >> $(LINUX)/.config
+	# 1. Baza procesora i pamięci
+	echo "CONFIG_64BIT=y" >> $(LINUX)/.config
+	echo "CONFIG_SMP=y" >> $(LINUX)/.config
+	echo "CONFIG_MMU=y" >> $(LINUX)/.config
+	echo "CONFIG_FLATMEM_MANUAL=y" >> $(LINUX)/.config
+	echo "CONFIG_FLATMEM=y" >> $(LINUX)/.config
+	echo "CONFIG_PCI=y" >> $(LINUX)/.config
 	
-.PHONY: all install update build_all build build_test
+	# Architecture
+	if [ "$(ARCH)" = "x86_64" ]; then \
+		echo "CONFIG_X86=y" >> $(LINUX)/.config; \
+		echo "CONFIG_X86_64=y" >> $(LINUX)/.config; \
+		echo "CONFIG_X86_LOCAL_APIC=y" >> $(LINUX)/.config; \
+		echo "CONFIG_X86_IO_APIC=y" >> $(LINUX)/.config; \
+		echo "CONFIG_HPET_TIMER=y" >> $(LINUX)/.config; \
+		echo "CONFIG_PCI_MSI=y" >> $(LINUX)/.config; \
+	elif [ "$(ARCH)" = "aarch64" ]; then \
+		echo "CONFIG_ARM64=y" >> $(LINUX)/.config; \
+		echo "CONFIG_ARM_GIC=y" >> $(LINUX)/.config; \
+		echo "CONFIG_ARM_GIC_V3=y" >> $(LINUX)/.config; \
+		echo "CONFIG_ARM_ARCH_TIMER=y" >> $(LINUX)/.config; \
+	elif [ "$(ARCH)" = "riscv64" ]; then \
+		echo "CONFIG_RISCV=y" >> $(LINUX)/.config; \
+		echo "CONFIG_ARCH_RV64I=y" >> $(LINUX)/.config; \
+		echo "CONFIG_SIFIVE_PLIC=y" >> $(LINUX)/.config; \
+		echo "CONFIG_RISCV_TIMER=y" >> $(LINUX)/.config; \
+	fi
+	
+	# 2. System Base (Initramfs, ELF, TTY, Sysfs)
+	echo "CONFIG_BLK_DEV_INITRD=y" >> $(LINUX)/.config
+	echo "CONFIG_RD_ZSTD=y" >> $(LINUX)/.config
+	echo "CONFIG_BINFMT_ELF=y" >> $(LINUX)/.config
+	echo "CONFIG_BINFMT_SCRIPT=y" >> $(LINUX)/.config
+	echo "CONFIG_PROC_FS=y" >> $(LINUX)/.config
+	echo "CONFIG_SYSFS=y" >> $(LINUX)/.config
+	echo "CONFIG_DEVTMPFS=y" >> $(LINUX)/.config
+	echo "CONFIG_DEVTMPFS_MOUNT=y" >> $(LINUX)/.config
+	echo "CONFIG_TTY=y" >> $(LINUX)/.config
+	echo "CONFIG_EPOLL=y" >> $(LINUX)/.config
+	echo "CONFIG_SIGNALFD=y" >> $(LINUX)/.config
+	echo "CONFIG_TIMERFD=y" >> $(LINUX)/.config
+	echo "CONFIG_EVENTFD=y" >> $(LINUX)/.config
+	echo "CONFIG_EFI=y" >> $(LINUX)/.config
+    echo "CONFIG_EFI_STUB=y" >> $(LINUX)/.config
+	# Wbudowanie initramfs (FearInit) bezpośrednio w jądro
+    echo "CONFIG_BLK_DEV_INITRD=y" >> $(LINUX)/.config
+    echo "CONFIG_INITRAMFS_SOURCE=\"$$(realpath $(INITRAMFS))\"" >> $(LINUX)/.config
+	# Typ (Desktop / Server)
+	if [ "$(TYPE)" = "Desktop" ]; then \
+		echo "CONFIG_VT=y" >> $(LINUX)/.config; \
+		echo "CONFIG_VT_CONSOLE=y" >> $(LINUX)/.config; \
+		echo "CONFIG_INPUT=y" >> $(LINUX)/.config; \
+		echo "CONFIG_INPUT_KEYBOARD=y" >> $(LINUX)/.config; \
+		echo "CONFIG_INPUT_MOUSE=y" >> $(LINUX)/.config; \
+		echo "CONFIG_DRM=y" >> $(LINUX)/.config; \
+		echo "CONFIG_VIRTIO_PCI=y" >> $(LINUX)/.config; \
+		echo "CONFIG_VIRTIO_BLK=y" >> $(LINUX)/.config; \
+	elif [ "$(TYPE)" = "Server" ]; then \
+		echo "CONFIG_NET=y" >> $(LINUX)/.config; \
+		echo "CONFIG_INET=y" >> $(LINUX)/.config; \
+		echo "CONFIG_NET_ETHERNET=y" >> $(LINUX)/.config; \
+		echo "CONFIG_CGROUPS=y" >> $(LINUX)/.config; \
+		echo "CONFIG_VIRTIO_NET=y" >> $(LINUX)/.config; \
+		echo "CONFIG_VIRTIO_BLK=y" >> $(LINUX)/.config; \
+		echo "CONFIG_VIRTIO_PCI=y" >> $(LINUX)/.config; \
+	fi
+	
+	# Tryb (Dev / Release)
+	if [ "$(MODE)" = "Dev" ]; then \
+		echo "CONFIG_DEBUG_KERNEL=y" >> $(LINUX)/.config; \
+		echo "CONFIG_PRINTK=y" >> $(LINUX)/.config; \
+		echo "CONFIG_PRINTK_TIME=y" >> $(LINUX)/.config; \
+		echo "CONFIG_EARLY_PRINTK=y" >> $(LINUX)/.config; \
+		echo "CONFIG_SERIAL_8250=y" >> $(LINUX)/.config; \
+		echo "CONFIG_SERIAL_8250_CONSOLE=y" >> $(LINUX)/.config; \
+	elif [ "$(MODE)" = "Release" ]; then \
+		echo "# CONFIG_DEBUG_KERNEL is not set" >> $(LINUX)/.config; \
+		echo "CONFIG_PRINTK=y" >> $(LINUX)/.config; \
+		echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> $(LINUX)/.config; \
+	fi
+endef
+.PHONY: all install update build_all build build_test img_structure fearinit kernel sign img docker podman clean test
 all: build_all
 install:
 	@SUDO=""; \
@@ -42,8 +159,6 @@ install:
 	elif command -v apt-get > /dev/null 2>&1; then \
 		$$SUDO apt-get update -q > /dev/null && \
 		$$SUDO apt-get install -y -q --no-install-recommends $(APT_PKGS) > /dev/null; \
-	elif command -v dnf > /dev/null 2>&1; then \
-		$$SUDO dnf install -y -q $(DNF_PKGS) > /dev/null; \
 	else \
 		echo "Error: Unsupported package manager." && exit 1; \
 	fi; \
@@ -52,116 +167,83 @@ install:
 update:
 	@git submodule update --init --recursive --depth 1 --remote
 build_all: install
-
-    # --------------------------------------------------
-    # 						Desktop
-    # --------------------------------------------------
-	
-    # x86_64 (x86 64-bit / AMD64)
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=glibc
-
-    # aarch64 (ARM 64-bit)
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=aarch64 MODE=Dev LIB=glibc
-
-    # riscv64 (RISC-V 64-bit)
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=riscv64 MODE=Dev LIB=glibc
-	
-    # --------------------------------------------------
-    # 						Server
-    # --------------------------------------------------
-
-    # x86_64 (x86 64-bit / AMD64)
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=x86_64 MODE=Dev LIB=glibc
-
-    # aarch64 (ARM 64-bit)
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=aarch64 MODE=Dev LIB=glibc
-
-    # riscv64 (RISC-V 64-bit)
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Server ARCH=riscv64 MODE=Dev LIB=glibc
-
-build: initramfs shim # fearinit kernel
+#	@$(MAKE) --no-print-directory clean
+	@for arch in $(ALL_ARCHS); do \
+		echo ""; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		echo "🛠️  Building targets for ARCH=$$arch"; \
+		echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+		for type in $(ALL_TYPES); do \
+			echo ""; \
+			echo "  ┌─────────────────────────────────────────────────────────"; \
+			echo "  │ 🖥️  TYPE: $$type"; \
+			echo "  └─┬───────────────────────────────────────────────────────"; \
+			for mode in $(ALL_MODES); do \
+				if [ "$$mode" = "Release" ]; then \
+					echo "    │"; \
+					echo "    ├─► 🚀 MODE: $$mode"; \
+					echo "    │   │"; \
+					echo "    │   ├─► 🔹 LIB: musl"; \
+					$(MAKE) --no-print-directory build ARCH=$$arch TYPE=$$type MODE=$$mode; \
+				else \
+					echo "    │"; \
+					echo "    └─► 🚀 MODE: $$mode"; \
+					echo "        │"; \
+					echo "        ├─► 🔹 LIB: musl"; \
+					$(MAKE) --no-print-directory build ARCH=$$arch TYPE=$$type MODE=$$mode; \
+				fi; \
+			done; \
+		done; \
+	done
+build: img_structure kernel fearinit sign img
 build_test: install
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Release LIB=glibc
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=musl
-	@$(MAKE) --no-print-directory build TYPE=Desktop ARCH=x86_64 MODE=Dev LIB=glibc
-initramfs:
+	@$(foreach mode,$(ALL_MODES),\
+			$(MAKE) --no-print-directory build ARCH=x86_64 TYPE=Desktop MODE=$(mode); \
+	)
+img_structure:
 	@mkdir -p $(CACHE)/$(TARGET)/initramfs/bin \
 	         $(CACHE)/$(TARGET)/initramfs/dev \
 	         $(CACHE)/$(TARGET)/initramfs/proc \
 	         $(CACHE)/$(TARGET)/initramfs/sys \
-	         $(CACHE)/$(TARGET)/iso/EFI/BOOT
-shim:
-	@if [ ! -f $(SHIM_x86_64) ]; then \
-		echo "⬇️ Downloading x86_64 shim..."; \
-		curl -fL -o $(SHIM_x86_64) -s https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/Packages/s/shim-x64-16.1-5.x86_64.rpm || \
-		{ echo "❌ Failed to download x86_64 shim"; rm -f $(SHIM_x86_64); exit 1; }; \
-	fi
-	@if [ ! -f $(SHIM_aarch64) ]; then \
-		echo "⬇️ Downloading aarch64 shim..."; \
-		curl -fL -o $(SHIM_aarch64) -s https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/aarch64/os/Packages/s/shim-aa64-16.1-5.aarch64.rpm || \
-		{ echo "❌ Failed to download aarch64 shim"; rm -f $(SHIM_aarch64); exit 1; }; \
-	fi
-	@echo "📦 Extracting shim for ARCH=$(ARCH) into $(EFI_BOOT)..."
-	@if [ "$(ARCH)" = "x86_64" ]; then \
-        bsdtar -xf $(SHIM_x86_64) -C $(EFI_BOOT) --strip-components 8 "*EFI/BOOT/*" "*mmx64.efi"; \
-        printf 'BOOTX64.EFI,$(OS_NAME),,This is the boot entry for $(OS_NAME)\n' | iconv -t UTF-16LE > $(EFI_BOOT)/BOOTX64.CSV; \
-    elif [ "$(ARCH)" = "aarch64" ]; then \
-        bsdtar -xf $(SHIM_aarch64) -C $(EFI_BOOT) --strip-components 8 "*EFI/BOOT/*" "*mmaa64.efi"; \
-        printf 'BOOTAA64.EFI,$(OS_NAME),,This is the boot entry for $(OS_NAME)\n' | iconv -t UTF-16LE > $(EFI_BOOT)/BOOTAA64.CSV; \
-    elif [ "$(ARCH)" = "riscv64" ]; then \
-        printf 'BOOTRISCV64.EFI,$(OS_NAME),,This is the boot entry for $(OS_NAME)\n' | iconv -t UTF-16LE > $(EFI_BOOT)/BOOTRISCV64.CSV; \
-    fi
+	         $(CACHE)/$(TARGET)/img/EFI/BOOT
+	@cp $(OS_NAME).cer $(EFI_BOOT)
 fearinit:
-	@$(MAKE) --no-print-directory -C $(FEARINIT)
+    #	env -u MAKEFLAGS -u CFLAGS -u LDFLAGS $(MAKE) -j$(shell nproc) -C $(FEARINIT) all
+	@$(MAKE) --no-print-directory -j$(shell nproc) -C $(FEARINIT) > /dev/null 2>&1
+    # 	Giving Init File Execute Permission
+	@chmod +x $(FEARINIT_BIN)
+    #	Copy FearInit Binary to initramfs
+	@cp $(FEARINIT_BIN) $(INITRAMFS)/init
+	@printf "🦀 %-5s %-10s %-10s -> %s\n" \
+		"[1/5]" "FearInit" "Built" "$(INITRAMFS)/init"
 kernel:
-	$(MAKE) --no-print-directory -C $(LINUX) $(KARGS) ARCH=$(ARCH) tinyconfig
-	$(LINUX)/scripts/kconfig/merge_config.sh -O $(LINUX) \
-		$(LINUX)/.config \
-		config/$(ARCH).config \
-		config/$(TYPE).config \
-		config/$(MODE).config
+	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) tinyconfig > /dev/null 2>&1
+	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) defconfig #> /dev/null 2>&1
+	@$(KCONFIG_GEN)
+	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) olddefconfig #> /dev/null 2>&1
+	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) $(KERNEL_TARGET) -j$(shell nproc) > /dev/null 2>&1
+	@cp $(KERNEL_SRC_BIN) $(EFI_BOOT)/$(EFI_OUT_NAME)
+	@printf "🐧 %-5s %-10s %-10s -> %s\n" \
+		"[2/5]" "Kernel" "Built" "$(EFI_BOOT)/$(EFI_OUT_NAME)"
 sign:
 	@echo "🔏 Signing binaries with YubiKey (osslsigncode)..."
-	@OPENSC_SO=$$(ls /usr/lib*/opensc-pkcs11.so /usr/lib64/pkcs11/opensc-pkcs11.so 2>/dev/null | head -n 1); \
+	@OPENSC_SO=$$(ls /usr/lib*/opensc-pkcs11.so /usr/lib64/pkcs11/opensc-pkcs11.so /usr/lib/opensc-pkcs11.so 2>/dev/null | head -n 1); \
 	[ -z "$$OPENSC_SO" ] && { echo "❌ Error: opensc-pkcs11.so not found!"; exit 1; }; \
-	[ ! -f "$(CERT_FILE)" ] && { echo "❌ Error: Certificate file missing: $(CERT_FILE)"; exit 1; }; \
-	\
-	read -s -p "🔑 Enter YubiKey PIN (once): " YUBI_PIN; echo; \
-	[ -z "$$YUBI_PIN" ] && { echo "❌ Error: PIN cannot be empty!"; exit 1; }; \
-	\
-	mkdir -p .cache; \
-	CNF=".cache/openssl_pkcs11.cnf"; \
-	printf "openssl_conf = openssl_init\n\n[openssl_init]\nengines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[pkcs11_section]\nengine_id = pkcs11\nMODULE_PATH = %s\nPIN = %s\ninit = 0\n" "$$OPENSC_SO" "$$YUBI_PIN" > "$$CNF"; \
+	[ ! -f "$(PIV_CERT)" ] && { echo "❌ Error: Certificate file missing: $(PIV_CERT)"; exit 1; }; \
 	\
 	SUCCESS=1; \
-	for file in $(BOOT)/bzImage $$(ls $(EFI_BOOT)/*.efi $(EFI_BOOT)/*.EFI 2>/dev/null); do \
+	for file in $$(ls $(EFI_BOOT)/*.efi $(EFI_BOOT)/*.EFI 2>/dev/null); do \
 		if [ -f "$$file" ] && [ ! -L "$$file" ]; then \
 			if [ "$$(stat -c%s "$$file" 2>/dev/null)" -lt 10240 ]; then \
 				echo "  -> Skipping $$file (helper stub)"; \
 				continue; \
 			fi; \
 			echo "  -> Signing $$file"; \
-			if ! OPENSSL_CONF="$$(pwd)/$$CNF" PKCS11_MODULE_PATH="$$OPENSC_SO" osslsigncode sign \
-				-engine pkcs11 -key "pkcs11:type=private" -certs "$(CERT_FILE)" \
+			if ! osslsigncode sign \
+				-pkcs11module "$$OPENSC_SO" \
+				-key "pkcs11:object=SIGN%20key;type=private" \
+				-certs "$(PIV_CERT)" \
+				-askpass \
 				-in "$$file" -out "$$file.signed"; then \
 				echo "❌ Error: Failed to sign $$file!"; \
 				SUCCESS=0; \
@@ -170,41 +252,41 @@ sign:
 			mv "$$file.signed" "$$file"; \
 		fi; \
 	done; \
-	rm -f "$$CNF"; \
 	[ "$$SUCCESS" -eq 0 ] && exit 1; \
 	echo "🎉 All binaries successfully signed!"
 iso:
-	mkdir -p $(OUTPUT)
-	xorriso -as mkisofs \
-		-b boot/limine/limine-bios-cd.bin \
-		-no-emul-boot -boot-load-size 4 -boot-info-table \
-		--efi-boot boot/limine/limine-uefi-cd.bin \
-		-efi-boot-part --efi-boot-image --protective-msdos-label \
-		-J -joliet -R -V "$(OS_NAME)" -o $(OUTPUT)/$(OS_FULLNAME) $(ISO)
-# --- Generating Hashes for Open Source Release ---
+img:
+	@mkdir -p $(OUTPUT)
+    # 1. Wygeneruj pusty plik o rozmiarze 64 MB (wystarczy na jądro z initramfs)
+	@truncate -s $$(($$(du -sb $(IMG) | awk '{print $$1}') < 55000 ? 55000 : $$(du -sb $(IMG) | awk '{print $$1}'))) $(OUTPUT)/$(OS_FULLNAME).img
+    # 2. Sformatuj ten plik jako system plików FAT (flaga -I jest kluczowa, bo to zwykły plik, a nie dysk!)
+	@mkfs.vfat -I $(OUTPUT)/$(OS_FULLNAME).img
+	@mcopy -s -i $(OUTPUT)/$(OS_FULLNAME).img $(IMG)/* ::/; \
+	
+    # --- Generating Hashes for Open Source Release ---
 	@echo "🔍 Generating SHA-512 checksum..."
-	@cd $(OUTPUT) && sha512sum $(OS_FULLNAME) > $(OS_FULLNAME).sha512
+	@cd $(OUTPUT) && sha512sum $(OS_FULLNAME).img > $(OS_FULLNAME).sha512
 
-# --- Optional: Sign ISO with GPG key (if available) ---
+    # --- Optional: Sign Image with GPG key (if available) ---
 	@if command -v gpg >/dev/null 2>&1 && gpg --list-secret-keys >/dev/null 2>&1; then \
-		echo "🔏 Signing ISO with GPG..."; \
-		cd $(OUTPUT) && gpg --batch --yes --detach-sign --armor $(OS_FULLNAME); \
+		echo "🔏 Signing Image with GPG..."; \
+		cd $(OUTPUT) && gpg --batch --yes --detach-sign --armor $(OS_FULLNAME).img; \
 	fi
 docker: clean
 	docker compose up --build
-	mkdir -p ./output
+	@mkdir -p ./output
 	docker cp $$(docker compose ps -qa builder):/build/output/. ./output/
 	docker compose down
 podman: clean
 	podman-compose up --build
-	mkdir -p ./output
+	@mkdir -p ./output
 	podman cp $$(podman-compose ps -qa builder):/build/output/. ./output/
 	podman-compose down
 clean:
-	rm -rf $(CACHE)
-	rm -rf target
-	rm -rf $(OUTPUT)
+	@rm -rf $(CACHE)
+	@rm -rf target
+	@rm -rf $(OUTPUT)
 test:
-	qemu-system-x86_64 -enable-kvm -cdrom $(OUTPUT)/$(OS_NAME)_Dev.iso -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd -m 2G\
-		-serial stdio \
-		-monitor vc
+	qemu-system-x86_64 -enable-kvm \
+          -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF.4m.fd \
+          -drive format=raw,file=$(OUTPUT)/$(OS_NAME)_Desktop_x86_64_musl_Release.img -m 2G -serial stdio -nic none
