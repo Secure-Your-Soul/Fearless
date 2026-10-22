@@ -19,16 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Cache Rust target
-        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
-        with:
-          path: |
-            target/
-            .cargo/
-          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-rust-
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@988b5a0280414f15d31fb5e51d81c5d3a8c12d3f
 
