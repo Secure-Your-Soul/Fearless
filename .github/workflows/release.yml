@@ -33,6 +33,9 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run make docker
-        run: make docker
+        run: |
+          echo "UID=$(id -u)" > .env
+          echo "GID=$(id -g)" >> .env
+          make docker
         env:
           DOCKER_BUILDKIT: 1
