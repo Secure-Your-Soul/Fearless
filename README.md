@@ -3,6 +3,9 @@
 [![Privacy](https://img.shields.io/badge/PRIVACY-ZERO--KNOWLEDGE-10b981?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/Secure-Your-Soul)
 [![Safety](https://img.shields.io/badge/SAFETY-MEMORY--SAFE-3b82f6?style=for-the-badge&logo=rust&logoColor=white)](https://github.com/Secure-Your-Soul)
 [![Kernel](https://img.shields.io/badge/KERNEL-HARDENED--LINUX-orange?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Secure-Your-Soul)
+
+Linux Mint + CachyOS + Fedora Silverblue + freeBSD/OpenBSD + tails + QubesOS just in Fearless?
+
 # ⚒️ How to start
 1. 📥 Download Repository
 ```sh
