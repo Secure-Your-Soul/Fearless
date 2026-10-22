@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    branches: [ stable ]
+  pull_request:
+    branches: [ stable ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Cache Rust target
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
+        with:
+          path: |
+            target/
+            .cargo/
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f15d31fb5e51d81c5d3a8c12d3f
+
+      - name: Build Docker image with cache
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcd37d
+        with:
+          context: .
+          file: Dockerfile
+          tags: fearless-builder:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run make docker
+        run: make docker
+        env:
+          DOCKER_BUILDKIT: 1
