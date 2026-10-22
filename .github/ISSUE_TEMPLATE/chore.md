@@ -1,8 +1,10 @@
 ---
 name: 🧹 Housekeeping / Cleanup
 about: Improvements, typos, documentation fixes
-title: '[CLEANUP]: '
+title: ''
+type: task
 labels: documentation
+assignees: '8989denis'
 ---
 
 ## 📝 What needs to be improved?

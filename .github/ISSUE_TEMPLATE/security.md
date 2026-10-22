@@ -1,8 +1,10 @@
 ---
 name: 🛡️ Security Vulnerability
 about: Report a security issue privately
-title: '[SECURITY]: '
+title: ''
+type: task
 labels: security
+assignees: '8989denis'
 ---
 
 ## 🔒 Security Report

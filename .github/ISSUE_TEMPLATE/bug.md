@@ -1,9 +1,10 @@
 ---
 name: 🐛 Bug Report
-about: Create a report to help us improve SecureOS
-title: '[BUG]: '
+about: Create a report to help us improve Fearless
+title: ''
+type: bug
 labels: bug
-assignees: ''
+assignees: '8989denis'
 ---
 
 ## 📝 Describe the bug
