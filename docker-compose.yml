@@ -1,11 +1,14 @@
 services:
   builder:
-    build: .
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '2.0'
-    devices:
-        - "/dev/bus/usb:/dev/bus/usb"
-    command: make
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HOST_UID: ${UID:-1000}
+        HOST_GID: ${GID:-1000}
+    image: fearless-builder:latest
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - .:/build
+    working_dir: /build
+    command: ["make"]

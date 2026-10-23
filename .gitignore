@@ -1,7 +1,5 @@
 # Temporary files to Build OS (Kernel, Bootloaders etc.) 
 .cache
-# Documentation
-notes
 # Output
 output
-target
+ESP
