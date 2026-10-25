@@ -7,18 +7,23 @@
 	OS_NAME 	 := Fearless
 	OS_FULLNAME  := $(OS_NAME)_$(TYPE)_$(ARCH)_$(MODE)
 	PIV_CERT  	 := $(OS_NAME).cer
-	TARGET	  	 := $(ARCH)/$(TYPE)/$(MODE)
+    # Github
+	ORGANIZATION ?= Secure-Your-Soul
+	VERSION  	 ?= v0.0.1
+    # System directory structure
+	ROOTFS    	 := rootfs
 	INITRAMFS 	 := initramfs
 	ESP			 := ESP
 	ESP_EFI		 := $(ESP)/EFI
 	ESP_EFI_BOOT := $(ESP_EFI)/BOOT
-	VERSION  	 ?= 1.0.0
-	ROOTFS    	 := rootfs
     # --------- OUTPUT ---------
 	OUTPUT 		 := output
 	ISO       	 := $(OUTPUT)/$(OS_NAME)-$(VERSION)-$(TYPE)-$(ARCH)-$(MODE).iso
     # --------- Temporary files (CACHE) ---------
 	CACHE 		 := .cache
+    # --------- Init ---------
+	INIT_TAG := v0.0.1
+	INIT_REPOSITORY := FearInit
     # --------- Kernel Binary File ---------
     KERNEL_IMAGE := $(LINUX)/arch/$(ARCH)/boot/bzImage
     KERNEL_FLAGS := LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX)
@@ -48,32 +53,39 @@
         KERNEL_SRC_BIN := $(LINUX)/arch/riscv/boot/Image
         EFI_OUT_NAME   := BOOTRISCV64.EFI
     endif
-.PHONY: all clean esp initramfs rootfs kernel sign iso iso_test sign_test docker
+.PHONY: all build_all build clean download-github-release esp initramfs rootfs kernel sign iso iso_test sign_test docker
 all: build_all
 build_all:
 	@set -e; \
 	for arch in $(ALL_ARCHS); do \
 	  for type in $(ALL_TYPES); do \
 	    for mode in $(ALL_MODES); do \
-	      echo "▶ $$arch • $$type • $$mode"; \
-	      $(MAKE) --no-print-directory build ARCH=$$arch TYPE=$$type MODE=$$mode; \
+			echo "▶ $$arch • $$type • $$mode"; \
+			$(MAKE) --no-print-directory build ARCH=$$arch TYPE=$$type MODE=$$mode; \
 	    done; \
 	  done; \
 	done
 	@echo "✅ build_all complete"
 build: clean esp initramfs rootfs kernel sign iso iso_test sign_test clean
 clean:
-	@rm -rf $(CACHE)
-esp:
 	@rm -rf $(ESP)
+	@rm -rf $(INITRAMFS)
+	@rm -rf $(CACHE)
+
+esp:
 	@mkdir -p $(ESP_EFI_BOOT)
 	@cp $(OS_NAME).cer $(ESP_EFI)
 initramfs:
-
+	@bash -c "mkdir -p $(INITRAMFS)/{bin,dev,proc,sbin,sys}"
+	@echo "📥 Fetching $(INIT_REPOSITORY) $(INIT_TAG)"
+	@curl -fL -sS -o $(INITRAMFS)/init https://github.com/$(ORGANIZATION)/$(INIT_REPOSITORY)/releases/download/$(INIT_TAG)/$(INIT_REPOSITORY)-$(ARCH)-musl
+	@chmod +x $(INITRAMFS)/init
+	@echo "✅ Download finished successfully"
 rootfs:
 
 kernel:
-
+	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) defconfig
+	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) $(KERNEL_TARGET) -j$(shell nproc)
 iso:
 	@rm -rf $(OUTPUT)
 	@mkdir -p $(OUTPUT)
