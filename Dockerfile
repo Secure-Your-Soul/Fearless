@@ -5,6 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Build Project
     make \
+    # Initramfs
+    curl ca-certificates \
     # Kernel
     # ISO
     xorriso dosfstools mtools\
