@@ -1,8 +1,10 @@
 ---
 name: ❓ Question
 about: Need help or have a question about SecureOS?
-title: '[QUESTION]: '
+title: ''
+type: task
 labels: question
+assignees: '8989denis'
 ---
 
 ## 🧐 How can I help you?

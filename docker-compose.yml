@@ -1,11 +1,21 @@
 services:
   builder:
-    build: .
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '2.0'
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HOST_UID: ${UID:-1000}
+        HOST_GID: ${GID:-1000}
+    image: fearless:latest
+    user: "${UID:-1000}:${GID:-1000}"
+    volumes:
+      - .:/build
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
+    working_dir: /build
+    command: ["make"]
+
+  test:
+    extends: builder
+    profiles: ["test"]
     devices:
-        - "/dev/bus/usb:/dev/bus/usb"
-    command: make
+      - "/dev/kvm:/dev/kvm"

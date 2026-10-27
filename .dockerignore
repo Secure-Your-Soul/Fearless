@@ -1,5 +1,12 @@
 .cache/
-target/
-output/
-external/
+.git/
 .github/
+output/
+ESP/
+
+*.md
+.gitignore
+.gitmodules
+.dockerignore
+Dockerfile
+docker-compose.yml

@@ -2,7 +2,3 @@
 	path = linux
 	url = https://github.com/torvalds/linux.git
 	shallow = true
-[submodule "FearInit"]
-	path = FearInit
-	url = https://github.com/Secure-Your-Soul/FearInit.git
-	shallow = true
