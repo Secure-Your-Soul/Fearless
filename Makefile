@@ -195,27 +195,28 @@ build_all: install
 			done; \
 		done; \
 	done
-build: img_structure kernel fearinit sign img
-build_test: install
-	@$(foreach mode,$(ALL_MODES),\
-			$(MAKE) --no-print-directory build ARCH=x86_64 TYPE=Desktop MODE=$(mode); \
-	)
-img_structure:
-	@mkdir -p $(CACHE)/$(TARGET)/initramfs/bin \
-	         $(CACHE)/$(TARGET)/initramfs/dev \
-	         $(CACHE)/$(TARGET)/initramfs/proc \
-	         $(CACHE)/$(TARGET)/initramfs/sys \
-	         $(CACHE)/$(TARGET)/img/EFI/BOOT
-	@cp $(OS_NAME).cer $(EFI_BOOT)
-fearinit:
-    #	env -u MAKEFLAGS -u CFLAGS -u LDFLAGS $(MAKE) -j$(shell nproc) -C $(FEARINIT) all
-	@$(MAKE) --no-print-directory -j$(shell nproc) -C $(FEARINIT) > /dev/null 2>&1
-    # 	Giving Init File Execute Permission
-	@chmod +x $(FEARINIT_BIN)
-    #	Copy FearInit Binary to initramfs
-	@cp $(FEARINIT_BIN) $(INITRAMFS)/init
-	@printf "🦀 %-5s %-10s %-10s -> %s\n" \
-		"[1/5]" "FearInit" "Built" "$(INITRAMFS)/init"
+	@echo "✅ Build all complete"
+
+build: clean esp initramfs rootfs kernel sign iso iso_test sign_test
+
+clean:
+	@rm -rf $(ESP)
+	@rm -rf $(INITRAMFS)
+#	@rm -rf $(CACHE)
+
+esp:
+	@mkdir -p $(ESP_EFI_BOOT)
+	@cp $(OS_NAME).cer $(ESP_EFI)
+
+initramfs:
+	@bash -c "mkdir -p $(INITRAMFS)/{bin,dev,proc,sbin,sys}"
+	@printf "▶  %-10s • %-10s • %s\n" "Fetch" "$(INIT_REPOSITORY)" "$(INIT_TAG)"
+	@curl -fL -sS -o $(INITRAMFS)/init https://github.com/$(ORGANIZATION)/$(INIT_REPOSITORY)/releases/download/$(INIT_TAG)/$(INIT_REPOSITORY)-$(ARCH)-dev
+	@chmod +x $(INITRAMFS)/init
+	@printf "▶  %-10s • %-10s • %s\n" "Ready" "$(INIT_REPOSITORY)" "$(MODE)"
+
+rootfs:
+
 kernel:
 	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) tinyconfig > /dev/null 2>&1
 	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) defconfig #> /dev/null 2>&1
