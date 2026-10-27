@@ -1,9 +1,10 @@
 ---
 name: 💡 Feature Request
-about: Suggest an idea for SecureOS
-title: '[FEATURE]: '
+about: Suggest an idea for Fearless
+title: ''
+type: feature
 labels: enhancement
-assignees: ''
+assignees: '8989denis'
 ---
 
 ## 🚀 Is your feature request related to a problem?
