@@ -9,11 +9,12 @@
 	PIV_CERT  	 := $(OS_NAME).cer
     # Github
 	ORGANIZATION ?= Secure-Your-Soul
-	VERSION  	 ?= v0.0.1
+	VERSION  	 ?= v0.1.0
     # System directory structure
-	ROOTFS    	 := rootfs
-	INITRAMFS 	 := initramfs
 	ESP			 := ESP
+	INITRAMFS 	 := initramfs
+	ROOTFS    	 := rootfs
+	LINUX		 := linux
 	ESP_EFI		 := $(ESP)/EFI
 	ESP_EFI_BOOT := $(ESP_EFI)/BOOT
     # --------- OUTPUT ---------
@@ -22,11 +23,11 @@
     # --------- Temporary files (CACHE) ---------
 	CACHE 		 := .cache
     # --------- Init ---------
-	INIT_TAG := v0.0.1
+	INIT_TAG := v0.1.3
 	INIT_REPOSITORY := FearInit
     # --------- Kernel Binary File ---------
     KERNEL_IMAGE := $(LINUX)/arch/$(ARCH)/boot/bzImage
-    KERNEL_FLAGS := LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX)
+    KERNEL_FLAGS ?= LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX)
     # INSTALL
 	RUST_TARGETS := x86_64-unknown-linux-musl aarch64-unknown-linux-musl riscv64gc-unknown-linux-musl
     # BUILD
@@ -53,41 +54,60 @@
         KERNEL_SRC_BIN := $(LINUX)/arch/riscv/boot/Image
         EFI_OUT_NAME   := BOOTRISCV64.EFI
     endif
+
 .PHONY: all build_all build clean download-github-release esp initramfs rootfs kernel sign iso iso_test sign_test docker
+
 all: build_all
+
 build_all:
+	@rm -rf $(OUTPUT)
 	@set -e; \
 	for arch in $(ALL_ARCHS); do \
 	  for type in $(ALL_TYPES); do \
 	    for mode in $(ALL_MODES); do \
-			echo "▶ $$arch • $$type • $$mode"; \
+			printf "▶  %-10s • %-10s • %s\n" "$$arch" "$$type" "$$mode"; \
 			$(MAKE) --no-print-directory build ARCH=$$arch TYPE=$$type MODE=$$mode; \
 	    done; \
 	  done; \
 	done
-	@echo "✅ build_all complete"
-build: clean esp initramfs rootfs kernel sign iso iso_test sign_test clean
+	@echo "✅ Build all complete"
+
+build: clean esp initramfs rootfs kernel sign iso iso_test sign_test
+
 clean:
 	@rm -rf $(ESP)
 	@rm -rf $(INITRAMFS)
-	@rm -rf $(CACHE)
+#	@rm -rf $(CACHE)
 
 esp:
 	@mkdir -p $(ESP_EFI_BOOT)
 	@cp $(OS_NAME).cer $(ESP_EFI)
+
 initramfs:
 	@bash -c "mkdir -p $(INITRAMFS)/{bin,dev,proc,sbin,sys}"
-	@echo "📥 Fetching $(INIT_REPOSITORY) $(INIT_TAG)"
-	@curl -fL -sS -o $(INITRAMFS)/init https://github.com/$(ORGANIZATION)/$(INIT_REPOSITORY)/releases/download/$(INIT_TAG)/$(INIT_REPOSITORY)-$(ARCH)-musl
+	@printf "▶  %-10s • %-10s • %s\n" "Fetch" "$(INIT_REPOSITORY)" "$(INIT_TAG)"
+	@curl -fL -sS -o $(INITRAMFS)/init https://github.com/$(ORGANIZATION)/$(INIT_REPOSITORY)/releases/download/$(INIT_TAG)/$(INIT_REPOSITORY)-$(ARCH)
 	@chmod +x $(INITRAMFS)/init
-	@echo "✅ Download finished successfully"
+	@printf "▶  %-10s • %-10s • %s\n" "Ready" "$(INIT_REPOSITORY)" "$(MODE)"
+
 rootfs:
 
 kernel:
-	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) defconfig
-	@$(MAKE) --no-print-directory -C $(LINUX) $(KERNEL_FLAGS) $(KERNEL_TARGET) -j$(shell nproc)
+	@mkdir -p $(CACHE)/kernel/$(KERNEL_ARCH)
+	@printf "▶  %-10s • %-10s • %s\n" "defconfig" "Kernel" "v$(shell $(MAKE) -s --no-print-directory -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) ARCH=$(KERNEL_ARCH) kernelversion 2>/dev/null)"
+	@$(MAKE) --silent --no-print-directory -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) $(KERNEL_FLAGS) defconfig
+	@printf "▶  %-10s • %-10s • %s\n" "merge configs" "Kernel" "v$(shell $(MAKE) -s --no-print-directory -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) ARCH=$(KERNEL_ARCH) kernelversion 2>/dev/null)"
+	@$(LINUX)/scripts/kconfig/merge_config.sh -m -O $(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) \
+		$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH)/.config \
+		$(PWD)/configs/initramfs.conf
+	@printf "▶  %-10s • %-10s • %s\n" "olddefconfig" "Kernel" "v$(shell $(MAKE) -s --no-print-directory -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) ARCH=$(KERNEL_ARCH) kernelversion 2>/dev/null)"
+	@$(MAKE) --silent -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) $(KERNEL_FLAGS) olddefconfig
+	@printf "▶  %-10s • %-10s • %s\n" "Build" "Kernel" "v$(shell $(MAKE) -s --no-print-directory -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) ARCH=$(KERNEL_ARCH) kernelversion 2>/dev/null)"
+	@$(MAKE) --silent --no-print-directory -C $(LINUX) O=$(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH) $(KERNEL_FLAGS) $(KERNEL_TARGET) -j$(nproc) -l16
+	@cp $(CACHE)/kernel/$(KERNEL_ARCH)/arch/$(KERNEL_ARCH)/boot/$(KERNEL_TARGET) $(ESP_EFI_BOOT)/$(EFI_OUT_NAME)
+	@printf "▶  %-10s • %-10s • %s\n" "Ready" "Kernel" "$(MODE)"
+
 iso:
-	@rm -rf $(OUTPUT)
 	@mkdir -p $(OUTPUT)
     # --- ESP: FAT32 with UKI ---
 	@dd if=/dev/zero of=$(OUTPUT)/efi.img bs=1M count=64 status=none
@@ -95,7 +115,7 @@ iso:
 	if [ $$rc -ne 0 ]; then echo "$$out"; exit $$rc; fi
 	@out=$$(MTOOLS_SKIP_CHECK=1 mmd -i $(OUTPUT)/efi.img ::/EFI ::/EFI/BOOT 2>&1); rc=$$?; \
 	if [ $$rc -ne 0 ]; then echo "$$out"; exit $$rc; fi
-	@for uki in $(ESP)/*.efi $(ESP)/*.EFI; do \
+	@for uki in $(ESP)/EFI/BOOT/*.efi $(ESP)/EFI/BOOT/*.EFI; do \
 	  [ -f "$$uki" ] || continue; \
 	  out=$$(MTOOLS_SKIP_CHECK=1 mcopy -i $(OUTPUT)/efi.img "$$uki" ::/EFI/BOOT/ 2>&1); rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "$$out"; exit $$rc; fi; \
@@ -115,7 +135,8 @@ iso:
 	  $$empty 2>&1); \
 	rc=$$?; rmdir $$empty; \
 	if [ $$rc -ne 0 ]; then echo "$$out"; exit $$rc; fi
-	@echo "✅ ISO: $(ISO) ($$(du -h $(ISO) | cut -f1))"
+	@printf "▶  %-10s • %-10s • %s (%s)\n" "ISO" "Ready" "$(PWD)/$(ISO)" "$$(du -h $(ISO) | cut -f1)"
+
 iso_test: $(ISO)
 	@echo "🔍 Testing $(ISO)"
 	@PASS=0; FAIL=0; \
@@ -142,6 +163,8 @@ iso_test: $(ISO)
 	  echo "❌ $$FAIL failed, $$PASS passed"; \
 	  exit 1; \
 	fi
+	@rm $(OUTPUT)/efi.img
+
 sign:
 
 sign_test:
@@ -149,3 +172,17 @@ sign_test:
 docker:
 	docker compose down --remove-orphans
 	docker compose up --build --abort-on-container-exit --exit-code-from builder
+
+test:
+	@echo "🖥️  Uruchamianie QEMU (UEFI)..."
+	#docker compose run --rm builder gpg --card-status
+	docker compose run --rm test sh -c "ISO_FILE=\$$(ls output/*.iso | head -n 1); \
+	cp /usr/share/OVMF/OVMF_VARS_4M.fd /build/OVMF_VARS.fd && \
+	qemu-system-x86_64 \
+		-enable-kvm \
+		-m 2048 \
+		-cpu max \
+		-nographic \
+		-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+		-drive if=pflash,format=raw,readonly=off,file=/build/OVMF_VARS.fd \
+		-drive file=\$$ISO_FILE,format=raw,media=cdrom"
