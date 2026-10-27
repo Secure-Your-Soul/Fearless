@@ -5,10 +5,13 @@ on:
     branches: [ stable ]
   pull_request:
     branches: [ stable ]
+  merge_group:
 
 permissions:
   contents: read
   packages: write
+  checks: write
+  statuses: write
 
 jobs:
   build:
@@ -29,7 +32,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          tags: fearless-builder:latest
+          tags: fearless:latest
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -41,3 +44,10 @@ jobs:
           make docker
         env:
           DOCKER_BUILDKIT: 1
+
+      - name: Upload ISO Artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Fearless-ISOs
+          path: output/*.iso
+          retention-days: 7
