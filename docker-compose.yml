@@ -6,9 +6,16 @@ services:
       args:
         HOST_UID: ${UID:-1000}
         HOST_GID: ${GID:-1000}
-    image: fearless-builder:latest
+    image: fearless:latest
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - .:/build
+      - /run/pcscd/pcscd.comm:/run/pcscd/pcscd.comm
     working_dir: /build
     command: ["make"]
+
+  test:
+    extends: builder
+    profiles: ["test"]
+    devices:
+      - "/dev/kvm:/dev/kvm"
