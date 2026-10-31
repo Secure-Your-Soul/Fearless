@@ -58,6 +58,7 @@ define CPIO_LIST
 dir /dev 0755 0 0
 nod /dev/console 600 0 0 c 5 1
 nod /dev/null 0666 0 0 c 1 3
+nod /dev/mem 600 0 0 c 1 1
 dir /etc 0755 0 0
 dir /proc 0555 0 0
 dir /sys 0555 0 0
@@ -247,3 +248,15 @@ bios:
 		-cpu max \
 		-nographic \
 		-drive file=\$$ISO_FILE,format=raw,media=cdrom"
+
+test-direct:
+	@echo "🖥️  Bezpośredni boot kernela + initramfs (UEFI)..."
+	@rm $(PWD)/$(CACHE)/initramfs.cpio.zst
+	@cd $(INITRAMFS) && find . -print0 | cpio --null -o -H newc | zstd -T0 -19 -o $(PWD)/$(CACHE)/initramfs.cpio.zst
+	qemu-system-x86_64 \
+		-enable-kvm \
+		-m 2048 \
+		-cpu max \
+		-nographic \
+		-kernel $(PWD)/$(CACHE)/kernel/$(KERNEL_ARCH)/arch/$(KERNEL_ARCH)/boot/$(KERNEL_TARGET) \
+		-initrd $(PWD)/$(CACHE)/initramfs.cpio.zst
