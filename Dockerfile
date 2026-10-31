@@ -7,10 +7,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     # Initramfs
     curl ca-certificates \
+    # RootFS
+    erofs-utils cryptsetup-bin \
     # Kernel
-    ccache clang lld bc llvm libelf-dev libssl-dev flex bison \
+    ccache clang lld bc llvm libelf-dev libssl-dev flex bison zstd \
     # ISO
-    xorriso dosfstools mtools\
+    xorriso dosfstools mtools \
     # Test ISO
     file genisoimage parted \
     # Sign
