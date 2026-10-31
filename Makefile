@@ -23,7 +23,7 @@
     # --------- Temporary files (CACHE) ---------
 	CACHE 		 := .cache
     # --------- Init ---------
-	INIT_TAG := v0.1.3
+	INIT_TAG := v0.1.4
 	INIT_REPOSITORY := FearInit
     # --------- Kernel Binary File ---------
     KERNEL_FLAGS ?= LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX)
@@ -81,7 +81,7 @@ esp:
 	@cp $(OS_NAME).cer $(ESP_EFI)
 
 initramfs:
-	@mkdir -p $(PWD)/$(CACHE) $(PWD)/$(INITRAMFS) 
+	@mkdir -p $(PWD)/$(CACHE) $(PWD)/$(INITRAMFS)/etc
 	
 	@printf "▶  %-15s • %-10s • %s\n" "Fetch" "$(INIT_REPOSITORY)" "$(INIT_TAG)"
 	@curl -fL -sS -o $(INITRAMFS)/init https://github.com/$(ORGANIZATION)/$(INIT_REPOSITORY)/releases/download/$(INIT_TAG)/$(INIT_REPOSITORY)-$(ARCH)
@@ -94,7 +94,6 @@ initramfs:
 	  'nod /dev/console 600 0 0 c 5 1' \
 	  'nod /dev/null 0666 0 0 c 1 3' \
 	  'nod /dev/mem 600 0 0 c 1 1' \
-	  'dir /etc 0755 0 0' \
 	  'dir /proc 0555 0 0' \
 	  'dir /sys 0555 0 0' \
 	  > $(CACHE)/cpio.list
@@ -102,17 +101,17 @@ initramfs:
     # Path to the directory or cpio archive that will be linked DIRECTLY INTO THE KERNEL IMAGE (no external initrd required).
 	@echo "CONFIG_INITRAMFS_SOURCE=\"$(PWD)/$(INITRAMFS) $(PWD)/$(CACHE)/cpio.list\"" > $(PWD)/$(CACHE)/generated.config
 
-# 	@printf 'NAME="$(OS_NAME) OS"\n' > $(INITRAMFS)/etc/os-release
-# 	@printf 'ID=$(shell echo $(OS_NAME) | tr A-Z a-z)\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'PRETTY_NAME="$(OS_NAME) OS $(VERSION)"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'VERSION_ID="$(VERSION)"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'HOME_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'DOCUMENTATION_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/wiki"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'SUPPORT_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/discussions"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'BUG_REPORT_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/issues"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'PRIVACY_POLICY_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/blob/stable/PRIVACY.md"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'ANSI_COLOR="1;31"\n' >> $(INITRAMFS)/etc/os-release
-# 	@printf 'CPE_NAME="cpe:/o:$(shell echo $(ORGANIZATION) | tr A-Z a-z):$(shell echo $(OS_NAME) | tr A-Z a-z)_os:$(VERSION)"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'NAME="$(OS_NAME) OS"\n' > $(INITRAMFS)/etc/os-release
+	@printf 'ID=$(shell echo $(OS_NAME) | tr A-Z a-z)\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'PRETTY_NAME="$(OS_NAME) OS $(VERSION)"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'VERSION_ID="$(VERSION)"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'HOME_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'DOCUMENTATION_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/wiki"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'SUPPORT_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/discussions"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'BUG_REPORT_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/issues"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'PRIVACY_POLICY_URL="https://github.com/$(ORGANIZATION)/$(OS_NAME)/blob/stable/PRIVACY.md"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'ANSI_COLOR="1;31"\n' >> $(INITRAMFS)/etc/os-release
+	@printf 'CPE_NAME="cpe:/o:$(shell echo $(ORGANIZATION) | tr A-Z a-z):$(shell echo $(OS_NAME) | tr A-Z a-z)_os:$(VERSION)"\n' >> $(INITRAMFS)/etc/os-release
 
 rootfs:
 	@mkdir -p $(ROOTFS)
