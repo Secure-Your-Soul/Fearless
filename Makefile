@@ -53,17 +53,6 @@
         KERNEL_SRC_BIN := $(LINUX)/arch/riscv/boot/Image
         EFI_OUT_NAME   := BOOTRISCV64.EFI
     endif
-#	--------- CPIO LIST ---------
-define CPIO_LIST
-dir /dev 0755 0 0
-nod /dev/console 600 0 0 c 5 1
-nod /dev/null 0666 0 0 c 1 3
-nod /dev/mem 600 0 0 c 1 1
-dir /etc 0755 0 0
-dir /proc 0555 0 0
-dir /sys 0555 0 0
-endef
-
 .PHONY: all build_all build clean download-github-release esp initramfs rootfs kernel sign iso iso_test sign_test docker
 
 all: build_all
@@ -100,7 +89,15 @@ initramfs:
 	@printf "▶  %-15s • %-10s • %s\n" "Ready" "$(INIT_REPOSITORY)" "$(MODE)"
 	
     # Create CPIO LIST
-	$(file >$(PWD)/$(CACHE)/cpio.list,$(CPIO_LIST))
+	@printf '%s\n' \
+	  'dir /dev 0755 0 0' \
+	  'nod /dev/console 600 0 0 c 5 1' \
+	  'nod /dev/null 0666 0 0 c 1 3' \
+	  'nod /dev/mem 600 0 0 c 1 1' \
+	  'dir /etc 0755 0 0' \
+	  'dir /proc 0555 0 0' \
+	  'dir /sys 0555 0 0' \
+	  > $(CACHE)/cpio.list
 
     # Path to the directory or cpio archive that will be linked DIRECTLY INTO THE KERNEL IMAGE (no external initrd required).
 	@echo "CONFIG_INITRAMFS_SOURCE=\"$(PWD)/$(INITRAMFS) $(PWD)/$(CACHE)/cpio.list\"" > $(PWD)/$(CACHE)/generated.config
