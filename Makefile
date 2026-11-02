@@ -53,7 +53,7 @@
         KERNEL_SRC_BIN := $(LINUX)/arch/riscv/boot/Image
         EFI_OUT_NAME   := BOOTRISCV64.EFI
     endif
-.PHONY: all build_all build clean download-github-release esp initramfs rootfs kernel sign iso iso_test sign_test docker
+.PHONY: all build_all build update clean download-github-release esp initramfs rootfs kernel sign iso iso_test sign_test docker
 
 all: build_all
 
@@ -71,6 +71,10 @@ build_all:
 	@echo "✅ Build all complete"
 
 build: clean esp initramfs rootfs kernel sign iso iso_test sign_test
+
+update:
+	@git submodule update --remote --recursive
+
 clean:
 	@rm -rf $(ESP)
 	@rm -rf $(INITRAMFS)
