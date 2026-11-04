@@ -12,17 +12,19 @@
     # Github
 	ORGANIZATION := Secure-Your-Soul
 	VERSION 	 := v0.1.0
+    # Root folder
+	ROOT   := $(CURDIR)
     # Temporary files (CACHE)
-	CACHE 		 := .cache
+	CACHE 		 := $(ROOT)/.cache
     # System directory structure
 	ESP			 := $(CACHE)/ESP
 	INITRAMFS 	 := $(CACHE)/initramfs
 	ROOTFS    	 := $(CACHE)/rootfs
-	LINUX		 := linux
+	LINUX		 := $(ROOT)/linux
 	ESP_EFI		 := $(ESP)/EFI
 	ESP_EFI_BOOT := $(ESP_EFI)/BOOT
     # OUTPUT 
-	OUTPUT 		 := output
+	OUTPUT 		 := $(ROOT)/output
 	ISO       	 := $(OUTPUT)/$(OS_NAME)-$(VERSION)-$(TYPE)-$(ARCH)-$(MODE).iso
     # Init
 	INIT_TAG := v0.1.4
@@ -148,7 +150,7 @@ kernel:
 	@printf "▶  %-15s • %-10s • %s\n" "merge configs" "Kernel" "v$(shell $(MAKE) -s --no-print-directory -C $(LINUX) O=$(CACHE)/kernel/$(KERNEL_ARCH) ARCH=$(KERNEL_ARCH) kernelversion 2>/dev/null)"
 	@$(LINUX)/scripts/kconfig/merge_config.sh -m -O $(CACHE)/kernel/$(KERNEL_ARCH) \
 		$(CACHE)/kernel/$(KERNEL_ARCH)/.config \
-		./configs/default.config \
+		$(ROOT)/configs/default.config \
 		$(CACHE)/generated.config > /dev/null
 
 	@printf "▶  %-15s • %-10s • %s\n" "olddefconfig" "Kernel" "v$(shell $(MAKE) -s --no-print-directory -C $(LINUX) O=$(CACHE)/kernel/$(KERNEL_ARCH) ARCH=$(KERNEL_ARCH) kernelversion 2>/dev/null)"
