@@ -67,9 +67,9 @@ build_all:
 	@docker compose --progress quiet build builder
 	@set -e; \
 	for type in $(ALL_TYPES); do \
-		printf "▶  %-15s • %-10s • %s\n" "$(ARCH)" "$$type" "$(MODE) $(VERSION)"; \
+		printf "▶  %-15s • %-10s • %s\n" "$(ARCH)" "$$type" "$(MODE) $(VERSION) $(KERNEL_MARCH)"; \
 	  	docker compose --progress quiet run --quiet --quiet-pull --rm builder \
-	  		make build ARCH=$(ARCH) TYPE=$$type MODE=$(MODE); \
+	  		make build ARCH=$(ARCH) TYPE=$$type MODE=$(MODE) KERNEL_MARCH=$(KERNEL_MARCH); \
 	done
 	@echo "✅ Build all complete"
 
