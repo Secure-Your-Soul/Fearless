@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   check:
+    name: Check
     if: github.event_name == 'push' && github.ref == 'refs/heads/stable'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -48,6 +49,7 @@ jobs:
           fi
 
   build:
+    name: Build
     needs: [check]
     if: |
       always() &&
@@ -57,122 +59,316 @@ jobs:
         github.event_name == 'merge_group'
       )
 
-    continue-on-error: ${{ matrix.experimental == true }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
-        # --- x86_64 ---
-          - target: x86_64-unknown-linux-musl
-            cpu: x86-64
-            name: x86_64
-          - target: x86_64-unknown-linux-musl
-            cpu: x86-64-v2
-            name: x86_64-v2
-          - target: x86_64-unknown-linux-musl
-            cpu: x86-64-v3
-            name: x86_64-v3
-          - target: x86_64-unknown-linux-musl
-            cpu: x86-64-v4
-            name: x86_64-v4
 
-        # --- aarch64 ---
-          - target: aarch64-unknown-linux-musl
-            cpu: generic
-            name: aarch64
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a34
-            name: aarch64-cortex-a34
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a35
-            name: aarch64-cortex-a35
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a53
-            name: aarch64-cortex-a53
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a55
-            name: aarch64-cortex-a55
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a57
-            name: aarch64-cortex-a57
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a72
-            name: aarch64-cortex-a72
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a73
-            name: aarch64-cortex-a73
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a75
-            name: aarch64-cortex-a75
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a76
-            name: aarch64-cortex-a76
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a510
-            name: aarch64-cortex-a510
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a710
-            name: aarch64-cortex-a710
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-a715
-            name: aarch64-cortex-a715
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-x1
-            name: aarch64-cortex-x1
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: cortex-x2
-            name: aarch64-cortex-x2
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: neoverse-n1
-            name: aarch64-neoverse-n1
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: neoverse-n2
-            name: aarch64-neoverse-n2
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: neoverse-v1
-            name: aarch64-neoverse-v1
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: neoverse-e1
-            name: aarch64-neoverse-e1
-            experimental: true
-          - target: aarch64-unknown-linux-musl
-            cpu: apple-m1
-            name: aarch64-apple-m1
-            experimental: true
+      # x86_64
 
-        # --- riscv64 ---
-          - target: riscv64gc-unknown-linux-musl
-            cpu: generic
-            name: riscv64
-            experimental: true
-          - target: riscv64gc-unknown-linux-musl
-            cpu: sifive-u54
-            name: riscv64-sifive-u54
-            experimental: true
-          - target: riscv64gc-unknown-linux-musl
-            cpu: sifive-u74
-            name: riscv64-sifive-u74
-            experimental: true
+        # --- Generic ISA levels (compatibility) ---
+          - { cpu: x86-64 }
+          - { cpu: x86-64-v2 }
+          - { cpu: x86-64-v3 }
+          - { cpu: x86-64-v4 }
+
+        # --- Intel: early generations ---
+          - { cpu: i386 }
+          - { cpu: i486 }
+          - { cpu: i586 }
+          - { cpu: i686 }
+          - { cpu: pentium }
+          - { cpu: pentium-mmx }
+          - { cpu: pentiumpro }
+          - { cpu: pentium2 }
+          - { cpu: pentium3 }
+          - { cpu: pentium3m }
+          - { cpu: pentium-m }
+          - { cpu: pentium4 }
+          - { cpu: pentium4m }
+          - { cpu: prescott }
+          - { cpu: nocona }
+          - { cpu: core2 }
+          - { cpu: penryn }
+          - { cpu: yonah }
+
+        # --- Intel: Atom / low-power ---
+          - { cpu: bonnell }
+          - { cpu: atom }
+          - { cpu: silvermont }
+          - { cpu: slm }
+          - { cpu: goldmont }
+          - { cpu: goldmont-plus }
+          - { cpu: tremont }
+          - { cpu: gracemont }
+          - { cpu: lakemont }
+
+        # --- Intel: Core / Nehalem / Sandy / Ivy / Haswell / Broadwell / Skylake ---
+          - { cpu: nehalem }
+          - { cpu: corei7 }
+          - { cpu: westmere }
+          - { cpu: sandybridge }
+          - { cpu: corei7-avx }
+          - { cpu: ivybridge }
+          - { cpu: core-avx-i }
+          - { cpu: haswell }
+          - { cpu: core-avx2 }
+          - { cpu: broadwell }
+          - { cpu: skylake }
+          - { cpu: skylake-avx512 }
+          - { cpu: skx }
+          - { cpu: cannonlake }
+          - { cpu: icelake-client }
+          - { cpu: icelake-server }
+          - { cpu: cascadelake }
+          - { cpu: cooperlake }
+          - { cpu: tigerlake }
+          - { cpu: rocketlake }
+
+        # --- Intel: recent (Alder Lake -> Diamond Rapids) ---
+          - { cpu: alderlake }
+          - { cpu: raptorlake }
+          - { cpu: meteorlake }
+          - { cpu: sapphirerapids }
+          - { cpu: graniterapids }
+          - { cpu: graniterapids-d }
+          - { cpu: sierraforest }
+          - { cpu: emeraldrapids }
+          - { cpu: arrowlake }
+          - { cpu: arrowlake-s }
+          - { cpu: lunarlake }
+          - { cpu: pantherlake }
+          - { cpu: wildcatlake }
+          - { cpu: novalake }
+          - { cpu: diamondrapids }
+          - { cpu: clearwaterforest }
+          - { cpu: grandridge }
+
+        # --- Intel: Xeon Phi ---
+          - { cpu: knl }
+          - { cpu: knm }
+
+        # --- AMD: early (K6 / K7 / K8 / K10 / Bulldozer) ---
+          - { cpu: k6 }
+          - { cpu: k6-2 }
+          - { cpu: k6-3 }
+          - { cpu: athlon }
+          - { cpu: athlon-xp }
+          - { cpu: k8 }
+          - { cpu: athlon64 }
+          - { cpu: athlon-fx }
+          - { cpu: opteron }
+          - { cpu: k8-sse3 }
+          - { cpu: athlon64-sse3 }
+          - { cpu: opteron-sse3 }
+          - { cpu: amdfam10 }
+          - { cpu: barcelona }
+          - { cpu: btver1 }
+          - { cpu: btver2 }
+          - { cpu: bdver1 }
+          - { cpu: bdver2 }
+          - { cpu: bdver3 }
+          - { cpu: bdver4 }
+
+        # --- AMD: Zen ---
+          - { cpu: znver1 }
+          - { cpu: znver2 }
+          - { cpu: znver3 }
+          - { cpu: znver4 }
+          - { cpu: znver5 }
+
+        # --- VIA / Centaur / Cyrix / IDT ---
+          - { cpu: winchip-c6 }
+          - { cpu: winchip2 }
+          - { cpu: c3 }
+          - { cpu: c3-2 }
+          - { cpu: geode }
+
+      # AArch64
+
+        # --- Generic ISA levels (compatibility) ---
+          - { cpu: generic }
+          - { cpu: generic_armv8_a }
+          - { cpu: generic_armv9_a }
+
+        # --- Arm: Cortex-A (application) ---
+          - { cpu: cortex-a34 }
+          - { cpu: cortex-a35 }
+          - { cpu: cortex-a53 }
+          - { cpu: cortex-a55 }
+          - { cpu: cortex-a57 }
+          - { cpu: cortex-a65 }
+          - { cpu: cortex-a65ae }
+          - { cpu: cortex-a72 }
+          - { cpu: cortex-a73 }
+          - { cpu: cortex-a75 }
+          - { cpu: cortex-a76 }
+          - { cpu: cortex-a76ae }
+          - { cpu: cortex-a77 }
+          - { cpu: cortex-a78 }
+          - { cpu: cortex-a78ae }
+          - { cpu: cortex-a78c }
+          - { cpu: cortex-a510 }
+          - { cpu: cortex-a520 }
+          - { cpu: cortex-a520ae }
+          - { cpu: cortex-a710 }
+          - { cpu: cortex-a715 }
+          - { cpu: cortex-a720 }
+          - { cpu: cortex-a720ae }
+          - { cpu: cortex-a725 }
+          - { cpu: cortex-a320 }
+
+        # --- Arm: Cortex-R (real-time) ---
+          - { cpu: cortex-r82 }
+          - { cpu: cortex-r82ae }
+
+        # --- Arm: Cortex-X (performance) ---
+          - { cpu: cortex-x1 }
+          - { cpu: cortex-x1c }
+          - { cpu: cortex-x2 }
+          - { cpu: cortex-x3 }
+          - { cpu: cortex-x4 }
+          - { cpu: cortex-x925 }
+
+        # --- Arm: Neoverse (server/infrastructure) ---
+          - { cpu: neoverse-e1 }
+          - { cpu: neoverse-n1 }
+          - { cpu: neoverse-n2 }
+          - { cpu: neoverse-n3 }
+          - { cpu: neoverse-512tvb }
+          - { cpu: neoverse-v1 }
+          - { cpu: neoverse-v2 }
+          - { cpu: neoverse-v3 }
+          - { cpu: neoverse-v3ae }
+
+        # --- Apple Silicon ---
+          - { cpu: apple-a7 }
+          - { cpu: apple-a8 }
+          - { cpu: apple-a9 }
+          - { cpu: apple-a10 }
+          - { cpu: apple-a11 }
+          - { cpu: apple-a12 }
+          - { cpu: apple-a13 }
+          - { cpu: apple-a14 }
+          - { cpu: apple-a15 }
+          - { cpu: apple-a16 }
+          - { cpu: apple-a17 }
+          - { cpu: apple-m1 }
+          - { cpu: apple-m2 }
+          - { cpu: apple-m3 }
+          - { cpu: apple-m4 }
+          - { cpu: apple-m5 }
+          - { cpu: apple-s4 }
+          - { cpu: apple-s5 }
+
+        # --- Ampere Computing ---
+          - { cpu: ampere1 }
+          - { cpu: ampere1a }
+          - { cpu: ampere1b }
+          - { cpu: ampere1c }
+          - { cpu: emag }
+
+        # --- Cavium / Marvell (ThunderX family) ---
+          - { cpu: thunderx }
+          - { cpu: thunderxt81 }
+          - { cpu: thunderxt83 }
+          - { cpu: thunderxt88 }
+          - { cpu: thunderxt88p1 }
+          - { cpu: thunderx2t99 }
+          - { cpu: thunderx2t99p1 }
+          - { cpu: thunderx3t110 }
+          - { cpu: octeontx }
+          - { cpu: octeontxt81 }
+          - { cpu: octeontxt83 }
+          - { cpu: octeontx2 }
+          - { cpu: octeontx2t98 }
+          - { cpu: octeontx2t96 }
+          - { cpu: octeontx2t93 }
+          - { cpu: octeontx2f95 }
+          - { cpu: octeontx2f95n }
+          - { cpu: octeontx2f95mm }
+
+        # --- Fujitsu ---
+          - { cpu: a64fx }
+          - { cpu: fujitsu-monaka }
+
+        # --- Qualcomm ---
+          - { cpu: kryo }
+          - { cpu: falkor }
+          - { cpu: saphira }
+
+        # --- Samsung ---
+          - { cpu: exynos-m1 }
+          - { cpu: exynos-m2 }
+          - { cpu: exynos-m3 }
+          - { cpu: exynos-m4 }
+          - { cpu: exynos-m5 }
+
+        # --- Other vendors / server chips ---
+          - { cpu: carmel }
+          - { cpu: cobalt-100 }
+          - { cpu: cyclone }
+          - { cpu: grace }
+          - { cpu: oryon-1 }
+          - { cpu: tsv110 }
+          - { cpu: hip12 }
+          - { cpu: hip09 }
+          - { cpu: qdf24xx }
+          - { cpu: phecda }
+          - { cpu: vulcan }
+          - { cpu: xgene1 }
+          - { cpu: ares }
+          - { cpu: zeus }
+          - { cpu: rigel }
+          - { cpu: demeter }
+          - { cpu: olympus }
+          - { cpu: gb10 }
+          - { cpu: c1-nano }
+          - { cpu: c1-pro }
+          - { cpu: c1-premium }
+          - { cpu: c1-ultra }
+          - { cpu: armagicpu }
+
+      # RISC-V (rv64)
+
+        # --- Generic ISA profiles (compatibility) ---
+          - { cpu: generic-rv64 }
+          - { cpu: rocket-rv64 }
+          - { cpu: generic-rva20s64 }
+          - { cpu: generic-rva20u64 }
+          - { cpu: generic-rva22s64 }
+          - { cpu: generic-rva22u64 }
+          - { cpu: generic-rva23s64 }
+          - { cpu: generic-rva23u64 }
+          - { cpu: generic-rvb23s64 }
+          - { cpu: generic-rvb23u64 }
+          - { cpu: generic-rvi20u64 }
+          - { cpu: rva20s64 }
+          - { cpu: rva20u64 }
+          - { cpu: rva22s64 }
+          - { cpu: rva22u64 }
+          - { cpu: rva23s64 }
+          - { cpu: rva23u64 }
+          - { cpu: rvb23s64 }
+          - { cpu: rvb23u64 }
+          - { cpu: rvi20u64 }
+
+        # --- SiFive ---
+          - { cpu: sifive-p450 }
+          - { cpu: sifive-p670 }
+          - { cpu: sifive-s21 }
+          - { cpu: sifive-s51 }
+          - { cpu: sifive-s54 }
+          - { cpu: sifive-s76 }
+          - { cpu: sifive-u54 }
+          - { cpu: sifive-u74 }
+          - { cpu: sifive-x280 }
+
+        # --- Other vendors ---
+          - { cpu: veyron-v1 }
+          - { cpu: xiangshan-nanhu }
 
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -192,24 +388,25 @@ jobs:
           file: Dockerfile
           tags: fearless:latest
           load: true
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          cache-from: type=gha,scope=${{ matrix.cpu }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cpu }}
 
       - name: Run make
         run: |
           echo "UID=$(id -u)" > .env
           echo "GID=$(id -g)" >> .env
-          make KERNEL_MARCH=${{ matrix.kernel_march }}
+          make KERNEL_CPU=${{ matrix.cpu }}
         env:
           DOCKER_BUILDKIT: 1
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ env.REPOSITORY_NAME }}-${{ matrix.name }}
+          name: ${{ env.REPOSITORY_NAME }}-${{ matrix.name || matrix.cpu }}
           path: output/*.iso
           retention-days: 7
           
-  release:
+  deploy:
+    name: Deploy
     needs: [check, build]
     if: |
       always() &&
