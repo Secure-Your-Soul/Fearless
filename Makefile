@@ -36,7 +36,6 @@
 # --------- CPU → ARCH mapping ---------
 
 	X86_CPUS     := x86-64 x86-64-v2 x86-64-v3 x86-64-v4 \
-					i386 i486 i586 i686 pentium pentium2 pentium3 pentium4 \
 					prescott nocona core2 penryn nehalem westmere \
 					sandybridge ivybridge haswell broadwell skylake skylake-avx512 \
 					cannonlake icelake-client icelake-server cascadelake \
