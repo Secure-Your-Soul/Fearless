@@ -5,7 +5,6 @@
 #
 # --------- CONFIG ---------
 	OS_NAME 	 := Fearless
-	ARCH		 ?= $(shell uname -m)
 	MODE		 ?= Release
 	OS_FULLNAME  := $(OS_NAME)_$(TYPE)_$(ARCH)_$(MODE)
 	PIV_CERT  	 := $(OS_NAME).cer
@@ -30,10 +29,58 @@
 	INIT_TAG := v0.1.4
 	INIT_REPOSITORY := FearInit
     # Kernel
-	KERNEL_MARCH ?= native
-    KERNEL_FLAGS ?= LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX) KCFLAGS="-march=$(KERNEL_MARCH) -mtune=$(KERNEL_MARCH)"
-    # BUILD
+	KERNEL_CPU ?= native
+    KERNEL_FLAGS ?= LLVM=1 LLVM_IAS=1 LD=ld.lld CC="ccache clang" ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_PREFIX)
 	ALL_TYPES 	 := Desktop Server
+
+# --------- CPU → ARCH mapping ---------
+
+	X86_CPUS     := x86-64 x86-64-v2 x86-64-v3 x86-64-v4 \
+					i386 i486 i586 i686 pentium pentium2 pentium3 pentium4 \
+					prescott nocona core2 penryn nehalem westmere \
+					sandybridge ivybridge haswell broadwell skylake skylake-avx512 \
+					cannonlake icelake-client icelake-server cascadelake \
+					cooperlake tigerlake rocketlake alderlake raptorlake \
+					meteorlake sapphirerapids graniterapids sierraforest \
+					emeraldrapids arrowlake lunarlake pantherlake \
+					k8 athlon64 opteron amdfam10 bdver1 bdver2 bdver3 bdver4 \
+					znver1 znver2 znver3 znver4 znver5
+
+	AARCH64_CPUS := generic cortex-a34 cortex-a35 cortex-a53 cortex-a55 \
+					cortex-a57 cortex-a72 cortex-a73 cortex-a75 cortex-a76 \
+					cortex-a77 cortex-a78 cortex-a510 cortex-a710 cortex-a715 \
+					cortex-a720 cortex-a725 cortex-a520 cortex-x1 cortex-x1c \
+					cortex-x2 cortex-x3 cortex-x4 cortex-x925 \
+					neoverse-n1 neoverse-n2 neoverse-n3 neoverse-v1 \
+					neoverse-v2 neoverse-v3 neoverse-e1 neoverse-512tvb \
+					apple-a7 apple-a8 apple-a9 apple-a10 apple-a11 apple-a12 \
+					apple-a13 apple-a14 apple-a15 apple-a16 apple-a17 \
+					apple-m1 apple-m2 apple-m3 apple-m4 \
+					ampere1 ampere1a ampere1b a64fx carmel cyclone \
+					exynos-m1 exynos-m2 exynos-m3 exynos-m4 exynos-m5 \
+					falkor fujitsu-monaka grace kryo oryon-1 saphira \
+					thunderx thunderx2t99 thunderx3t110 tsv110
+
+	RISCV_CPUS   := generic-rv64 rocket-rv64 sifive-u54 sifive-u74 \
+					sifive-s21 sifive-s51 sifive-s54 sifive-s76 \
+					sifive-p450 sifive-p670 sifive-x280 \
+					veyron-v1 xiangshan-nanhu
+
+	ifeq ($(origin ARCH),undefined)
+		ifneq ($(filter $(KERNEL_CPU),$(X86_CPUS)),)
+			ARCH := x86_64
+		else ifneq ($(filter $(KERNEL_CPU),$(AARCH64_CPUS)),)
+			ARCH := aarch64
+		else ifneq ($(filter $(KERNEL_CPU),$(RISCV_CPUS)),)
+			ARCH := riscv64
+		else ifeq ($(KERNEL_CPU),native)
+			# native → wykryj z hosta
+			ARCH := $(shell uname -m)
+		else
+			$(error Unknown KERNEL_CPU='$(KERNEL_CPU)'. Add it to X86_CPUS, AARCH64_CPUS or RISCV_CPUS in Makefile.)
+		endif
+	endif
+
 # Dynamic Kernel & EFI Target Mapping
     ifeq ($(ARCH),x86_64)
         KERNEL_ARCH    := x86
@@ -55,6 +102,16 @@
         EFI_OUT_NAME   := BOOTRISCV64.EFI
     endif
 
+# Kernel flags per arch
+	ifeq ($(ARCH),aarch64)
+		KERNEL_CPU_FLAG := -mcpu=$(KERNEL_CPU) -mno-aes -mno-sha2 -mno-crc
+	else ifeq ($(ARCH),riscv64)
+		KERNEL_CPU_FLAG := -mcpu=$(KERNEL_CPU)
+	else
+		KERNEL_CPU_FLAG := -march=$(KERNEL_CPU)
+	endif
+	KERNEL_FLAGS += KCFLAGS="$(KERNEL_CPU_FLAG)"
+
 .PHONY: var-% all build_all dev build update clean download-github-release esp initramfs rootfs kernel sign iso iso_test sign_test uefi bios test-direct
 
 var-%:
@@ -67,9 +124,9 @@ build_all:
 	@docker compose --progress quiet build builder
 	@set -e; \
 	for type in $(ALL_TYPES); do \
-		printf "▶  %-15s • %-10s • %s\n" "$(ARCH)" "$$type" "$(MODE) $(VERSION)"; \
+		printf "▶  %-15s • %-10s • %s\n" "$(ARCH)" "$$type" "$(MODE) $(VERSION) $(KERNEL_CPU)"; \
 	  	docker compose --progress quiet run --quiet --quiet-pull --rm builder \
-	  		make build ARCH=$(ARCH) TYPE=$$type MODE=$(MODE); \
+	  		make build ARCH=$(ARCH) TYPE=$$type MODE=$(MODE) KERNEL_CPU=$(KERNEL_CPU); \
 	done
 	@echo "✅ Build all complete"
 
